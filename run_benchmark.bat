@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 echo ================================================================================
-echo   ECS vs OOP Performance Benchmark - Build and Run Script
+echo   ECS vs OOP vs EnTT ECS Performance Benchmark - Build and Run Script
 echo ================================================================================
 echo.
 
@@ -41,6 +41,14 @@ echo   --- Running ECS Benchmark ---
 "%BUILD_DIR%\bin\Release\ecs_benchmark.exe"
 if %ERRORLEVEL% neq 0 (
     echo ECS benchmark failed!
+    exit /b 1
+)
+
+echo.
+echo   --- Running EnTT ECS Benchmark ---
+"%BUILD_DIR%\bin\Release\ecs_entt_benchmark.exe"
+if %ERRORLEVEL% neq 0 (
+    echo EnTT ECS benchmark failed!
     exit /b 1
 )
 echo.

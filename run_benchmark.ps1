@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
-# ECS vs OOP Performance Benchmark - Build and Run Script
+# ECS vs OOP vs EnTT ECS Performance Benchmark - Build and Run Script
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "================================================================================" -ForegroundColor Cyan
-Write-Host "  ECS vs OOP Performance Benchmark - Build and Run Script" -ForegroundColor Cyan
+Write-Host "  ECS vs OOP vs EnTT ECS Performance Benchmark - Build and Run Script" -ForegroundColor Cyan
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -46,6 +46,14 @@ Write-Host "  --- Running ECS Benchmark ---" -ForegroundColor White
 & "$BuildDir\bin\Release\ecs_benchmark.exe"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ECS benchmark failed!" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
+Write-Host "  --- Running EnTT ECS Benchmark ---" -ForegroundColor White
+& "$BuildDir\bin\Release\ecs_entt_benchmark.exe"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "EnTT ECS benchmark failed!" -ForegroundColor Red
     exit 1
 }
 Write-Host ""
