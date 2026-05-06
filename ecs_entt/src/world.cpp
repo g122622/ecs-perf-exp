@@ -1,11 +1,17 @@
 #include "world.hpp"
 #include <cmath>
 #include <algorithm>
+#include <random>
 
 namespace ecs_entt {
 
+// Static RNG for systems
+static std::mt19937 g_rng(shared::RandomConstants::DEFAULT_SEED);
+static std::uniform_real_distribution<float> g_dist(0.0f, 1.0f);
+
 World::World(size_t initialCapacity)
-    : rng_(shared::RandomConstants::DEFAULT_SEED) {
+    : rng_(shared::RandomConstants::DEFAULT_SEED)
+    , dist_(0.0f, 1.0f) {
     // Note: reserve() not available in EnTT 3.x, entities are created on demand
 }
 
@@ -59,7 +65,7 @@ void World::createEntityComponents(Entity entity, shared::EntityType type,
     // Attributes
     auto& attr = registry_.emplace<Attributes>(entity);
     attr.moveSpeed = config.moveSpeed;
-    attr.attackDamage = config.attackDamage;
+    attr.attackDamage = static_cast<float>(config.attackDamage);
     attr.attackRange = config.attackRange;
     attr.attackCooldown = config.attackCooldown;
     attr.flightHeight = config.flightHeight;
@@ -91,7 +97,7 @@ void MovementSystem::update(entt::registry& registry, float dt) {
         switch (ai.state) {
             case 1: // Wander
                 if (ai.wanderDirX == 0.0f && ai.wanderDirZ == 0.0f) {
-                    float angle = static_cast<float>(rand()) / RAND_MAX * 2.0f * 3.14159265f;
+                    float angle = g_dist(g_rng) * 2.0f * 3.14159265f;
                     ai.wanderDirX = std::cos(angle);
                     ai.wanderDirZ = std::sin(angle);
                 }
@@ -112,7 +118,7 @@ void MovementSystem::update(entt::registry& registry, float dt) {
                 break;
             case 3: // Flee
                 if (ai.wanderDirX == 0.0f && ai.wanderDirZ == 0.0f) {
-                    float angle = static_cast<float>(rand()) / RAND_MAX * 2.0f * 3.14159265f;
+                    float angle = g_dist(g_rng) * 2.0f * 3.14159265f;
                     ai.wanderDirX = std::cos(angle);
                     ai.wanderDirZ = std::sin(angle);
                 }
@@ -131,7 +137,7 @@ void MovementSystem::update(entt::registry& registry, float dt) {
             }
         }
 
-        // Aquatic entities
+        // Aquatic entities - use swim speed
         if (attr.swimSpeed > 0.0f) {
             speed = attr.swimSpeed;
         }
@@ -174,11 +180,12 @@ void PhysicsSystem::update(entt::registry& registry, float dt) {
 
 // AISystem
 void AISystem::update(entt::registry& registry, float dt) {
-    auto view = registry.view<AI, Attributes>();
+    auto view = registry.view<AI, Attributes, Health>();
 
     for (auto entity : view) {
         auto& ai = view.get<AI>(entity);
         auto& attr = view.get<Attributes>(entity);
+        auto& health = view.get<Health>(entity);
 
         ai.stateTimer += dt;
 
@@ -193,10 +200,13 @@ void AISystem::update(entt::registry& registry, float dt) {
                 if (ai.stateTimer > shared::WorldConstants::IDLE_DURATION_MAX) {
                     ai.state = 1; // Wander
                     ai.stateTimer = 0.0f;
+                    ai.stateDuration = shared::WorldConstants::WANDER_DURATION_MIN +
+                                       g_dist(g_rng) * (shared::WorldConstants::WANDER_DURATION_MAX -
+                                                         shared::WorldConstants::WANDER_DURATION_MIN);
                 }
                 break;
             case 1: // Wander
-                if (ai.stateTimer > shared::WorldConstants::WANDER_DURATION_MAX) {
+                if (ai.stateTimer > ai.stateDuration) {
                     ai.state = 0; // Idle
                     ai.stateTimer = 0.0f;
                     ai.wanderDirX = 0.0f;
@@ -221,6 +231,12 @@ void AISystem::update(entt::registry& registry, float dt) {
                     ai.wanderDirZ = 0.0f;
                 }
                 break;
+        }
+
+        // Low health flee for passive entities (animals)
+        float healthPercent = static_cast<float>(health.current) / static_cast<float>(health.maximum);
+        if (healthPercent < 0.3f && (attr.behaviorFlags & 0x02)) { // Passive flag
+            ai.state = 3; // Flee
         }
     }
 }
@@ -251,16 +267,14 @@ void InteractionSystem::update(entt::registry& registry, float dt) {
         auto& transform = hostiles.get<Transform>(entity);
         auto& ai = hostiles.get<AI>(entity);
         auto& attr = hostiles.get<Attributes>(entity);
-        auto& health = hostiles.get<Health>(entity);
 
         // Find passive targets for hostile entities
-        if ((attr.behaviorFlags & 0x01) && ai.target == NullEntity) { // Hostile
+        if ((attr.behaviorFlags & 0x01) && ai.target == NullEntity) { // Hostile flag
             for (auto target : passives) {
                 if (entity == target) continue;
 
                 auto& targetTransform = passives.get<Transform>(target);
                 auto& tag = passives.get<TypeTag>(target);
-                auto& targetHealth = passives.get<Health>(target);
 
                 if (tag.isAnimal) {
                     float dx = targetTransform.x - transform.x;

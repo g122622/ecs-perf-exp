@@ -62,11 +62,11 @@ def plot_frame_time_comparison(results, output_dir):
         for label, prefix, color in prefixes:
             data = results[f'{prefix}_frame']
             scale_data = data[data['scale'] == scale]
-            ax.plot(scale_data['frame'], scale_data['frame_time_ms'],
+            ax.plot(scale_data['frame'], scale_data['frame_time_ms'] * 1000,
                     label=label, color=color, alpha=0.7, linewidth=0.5)
 
         ax.set_xlabel('Frame')
-        ax.set_ylabel('Frame Time (ms)')
+        ax.set_ylabel('Frame Time (μs)')
         ax.set_title(f'{int(scale)} Entities')
         ax.legend()
         ax.grid(True, alpha=0.3)
@@ -98,21 +98,21 @@ def plot_avg_frame_time(results, output_dir):
 
     for i, (label, prefix, color) in enumerate(prefixes):
         data = results[f'{prefix}_frame']
-        avg_data = data.groupby('scale')['frame_time_ms'].mean()
+        avg_data = data.groupby('scale')['frame_time_ms'].mean() * 1000  # Convert to microseconds
         values = [avg_data.get(s, 0) for s in scales]
         bars = ax.bar(x + i * width - (len(prefixes) - 1) * width / 2, values, width,
                       label=label, color=color)
 
         for bar, val in zip(bars, values):
             height = bar.get_height()
-            ax.annotate(f'{val:.3f}',
+            ax.annotate(f'{val:.2f}',
                        xy=(bar.get_x() + bar.get_width() / 2, height),
                        xytext=(0, 3),
                        textcoords="offset points",
                        ha='center', va='bottom', fontsize=7)
 
     ax.set_xlabel('Entity Count')
-    ax.set_ylabel('Average Frame Time (ms)')
+    ax.set_ylabel('Average Frame Time (μs)')
     ax.set_title('Average Frame Time Comparison')
     ax.set_xticks(x)
     ax.set_xticklabels([f'{int(s):,}' for s in scales])
@@ -306,14 +306,14 @@ def generate_summary_table(results, output_dir):
             prefixes.append(('ECS (EnTT)', 'ecs_entt'))
 
         oop_data = results['oop_frame']
-        oop_avg = oop_data.groupby('scale')['frame_time_ms'].mean()
-        oop_std = oop_data.groupby('scale')['frame_time_ms'].std()
+        oop_avg = oop_data.groupby('scale')['frame_time_ms'].mean() * 1000  # Convert to microseconds
+        oop_std = oop_data.groupby('scale')['frame_time_ms'].std() * 1000
 
-        lines.append("Frame Time Results:")
+        lines.append("Frame Time Results (microseconds):")
         lines.append("-" * 100)
         header = f"{'Scale':>10}"
         for label, _ in prefixes:
-            header += f" | {label + ' Avg (ms)':>15} | {label + ' Std':>10}"
+            header += f" | {label + ' Avg (μs)':>15} | {label + ' Std':>10}"
         header += f" | {'vs OOP':>12}"
         lines.append(header)
         lines.append("-" * 100)
@@ -322,19 +322,19 @@ def generate_summary_table(results, output_dir):
             row = f"{int(scale):>10,}"
             for label, prefix in prefixes:
                 data = results[f'{prefix}_frame']
-                avg = data[data['scale'] == scale]['frame_time_ms'].mean()
-                std = data[data['scale'] == scale]['frame_time_ms'].std()
-                row += f" | {avg:>15.4f} | {std:>10.4f}"
+                avg = data[data['scale'] == scale]['frame_time_ms'].mean() * 1000
+                std = data[data['scale'] == scale]['frame_time_ms'].std() * 1000
+                row += f" | {avg:>15.2f} | {std:>10.2f}"
 
             # Improvement vs OOP
             ecs_improvement = ""
             if 'ecs_frame' in results:
                 ecs_avg = results['ecs_frame'][results['ecs_frame']['scale'] == scale]['frame_time_ms'].mean()
-                imp = ((oop_avg[scale] - ecs_avg) / oop_avg[scale]) * 100
+                imp = ((oop_avg[scale] / 1000 - ecs_avg) / (oop_avg[scale] / 1000)) * 100
                 ecs_improvement = f" ECS: {imp:>+6.1f}%"
             if 'ecs_entt_frame' in results:
                 entt_avg = results['ecs_entt_frame'][results['ecs_entt_frame']['scale'] == scale]['frame_time_ms'].mean()
-                imp = ((oop_avg[scale] - entt_avg) / oop_avg[scale]) * 100
+                imp = ((oop_avg[scale] / 1000 - entt_avg) / (oop_avg[scale] / 1000)) * 100
                 ecs_improvement += f" EnTT: {imp:>+6.1f}%"
             row += f" | {ecs_improvement:>12}"
             lines.append(row)

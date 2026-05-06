@@ -47,6 +47,9 @@ public:
     bool isInsideWorld(float x, float y, float z) const;
 
 private:
+    // 交互系统：怪物寻找和攻击动物
+    void updateInteractions(float dt);
+
     std::vector<std::unique_ptr<Entity>> entities_;
     EntityID nextId_ = 1;
     std::mt19937 rng_;

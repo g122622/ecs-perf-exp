@@ -43,6 +43,7 @@ struct AI {
     Entity target = NullEntity;
     float perceptionRange = 16.0f;
     float stateTimer = 0.0f;
+    float stateDuration = 0.0f;  // Duration for current state
     float wanderDirX = 0.0f;
     float wanderDirZ = 0.0f;
 };

@@ -3,6 +3,8 @@
 #include "entities/animals.hpp"
 #include "entities/flying.hpp"
 #include "entities/aquatic.hpp"
+#include "living_entity.hpp"
+#include "monster.hpp"
 #include <cmath>
 #include <algorithm>
 
@@ -133,9 +135,98 @@ const Entity* World::getEntity(EntityID id) const {
 }
 
 void World::update(float dt) {
+    // Update all entities
     for (auto& entity : entities_) {
         if (entity && entity->isActive()) {
             entity->update(dt);
+        }
+    }
+
+    // Interaction system: hostile monsters find and attack passive animals
+    updateInteractions(dt);
+}
+
+void World::updateInteractions(float dt) {
+    // Collect hostile monsters and passive animals
+    std::vector<Monster*> monsters;
+    std::vector<Creature*> animals;
+
+    for (auto& entity : entities_) {
+        if (!entity || !entity->isActive()) continue;
+
+        if (entity->isMonster()) {
+            auto* monster = dynamic_cast<Monster*>(entity.get());
+            if (monster) {
+                monsters.push_back(monster);
+            }
+        } else if (entity->isAnimal()) {
+            auto* animal = dynamic_cast<Creature*>(entity.get());
+            if (animal) {
+                animals.push_back(animal);
+            }
+        }
+    }
+
+    // Process monster interactions
+    for (auto* monster : monsters) {
+        // Find target if none
+        if (!monster->hasTarget()) {
+            float px = monster->getX();
+            float py = monster->getY();
+            float pz = monster->getZ();
+            float range = monster->getPerceptionRange();
+            float rangeSq = range * range;
+
+            for (auto* animal : animals) {
+                if (!animal->isActive()) continue;
+
+                float dx = animal->getX() - px;
+                float dy = animal->getY() - py;
+                float dz = animal->getZ() - pz;
+                float distSq = dx * dx + dy * dy + dz * dz;
+
+                if (distSq <= rangeSq) {
+                    monster->setTargetId(animal->getId());
+                    monster->setAIState(shared::AIState::Chase);
+                    break;
+                }
+            }
+        }
+
+        // Attack logic
+        if (monster->hasTarget() && monster->canAttack()) {
+            EntityID targetId = monster->getTargetId();
+            Entity* targetEntity = getEntity(targetId);
+
+            if (targetEntity && targetEntity->isActive() && targetEntity->isLiving()) {
+                auto* targetLiving = dynamic_cast<LivingEntity*>(targetEntity);
+                if (targetLiving) {
+                    float dx = targetEntity->getX() - monster->getX();
+                    float dy = targetEntity->getY() - monster->getY();
+                    float dz = targetEntity->getZ() - monster->getZ();
+                    float distSq = dx * dx + dy * dy + dz * dz;
+
+                    float attackRangeSq = monster->getAttackRange() * monster->getAttackRange();
+
+                    if (distSq <= attackRangeSq) {
+                        // In attack range - attack
+                        monster->attack(targetLiving);
+
+                        if (targetLiving->isDead()) {
+                            monster->clearTarget();
+                            monster->setAIState(shared::AIState::Wander);
+                        }
+                    } else if (distSq > shared::WorldConstants::DEAGGRO_RANGE * shared::WorldConstants::DEAGGRO_RANGE) {
+                        // Too far - deaggro
+                        monster->clearTarget();
+                        monster->setAIState(shared::AIState::Wander);
+                    }
+                }
+            } else {
+                // Target no longer valid
+                monster->clearTarget();
+                monster->setAIState(shared::AIState::Wander);
+            }
         }
     }
 }

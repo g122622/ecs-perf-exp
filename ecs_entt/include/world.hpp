@@ -59,6 +59,7 @@ private:
 
     entt::registry registry_;
     std::mt19937 rng_;
+    std::uniform_real_distribution<float> dist_;
 };
 
 // System implementations
