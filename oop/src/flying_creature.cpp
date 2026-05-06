@@ -1,7 +1,8 @@
 #include "flying_creature.hpp"
 #include "shared/constants.hpp"
-#include <cmath>
+
 #include <algorithm>
+#include <cmath>
 
 namespace oop {
 
@@ -22,7 +23,14 @@ void FlyingCreature::update(float dt) {
     Creature::update(dt);
 
     // 调整高度到目标飞行高度
-    float heightDiff = targetFlightHeight_ - y_;
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+    float targetHeight = targetFlightHeight_ + profile.verticalBias * 4.0f;
+    if (context.isNight) {
+        targetHeight += profile.nightAffinity * 1.5f;
+    }
+
+    float heightDiff = targetHeight - y_;
     if (std::abs(heightDiff) > 0.1f) {
         y_ += std::copysign(flightSpeed_ * dt, heightDiff);
     }
@@ -31,21 +39,42 @@ void FlyingCreature::update(float dt) {
 void FlyingCreature::updateMovement(float dt) {
     // 飞行生物的移动，忽略重力
     float dx = 0.0f, dz = 0.0f;
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+    float speedScale = shared::computeActivityMultiplier(profile, behaviorState_, context, aiState_, getHealthPercent(), true, false);
+    float currentSpeed = flightSpeed_ * speedScale;
 
     switch (aiState_) {
         case shared::AIState::Wander: {
-            dx = wanderDirX_ * flightSpeed_ * dt;
-            dz = wanderDirZ_ * flightSpeed_ * dt;
+            dx = wanderDirX_ * currentSpeed * dt;
+            dz = wanderDirZ_ * currentSpeed * dt;
             break;
         }
         case shared::AIState::Chase:
         case shared::AIState::Flee: {
-            dx = wanderDirX_ * flightSpeed_ * 1.5f * dt;
-            dz = wanderDirZ_ * flightSpeed_ * 1.5f * dt;
+            dx = wanderDirX_ * currentSpeed * 1.5f * dt;
+            dz = wanderDirZ_ * currentSpeed * 1.5f * dt;
+            break;
+        }
+        case shared::AIState::Attack: {
+            dx = wanderDirX_ * currentSpeed * 0.4f * dt;
+            dz = wanderDirZ_ * currentSpeed * 0.4f * dt;
             break;
         }
         default:
             break;
+    }
+
+    if (profile.homeBias > 0.0f) {
+        float homeDx = behaviorState_.homeX - x_;
+        float homeDz = behaviorState_.homeZ - z_;
+        float homeDistSq = homeDx * homeDx + homeDz * homeDz;
+        if (homeDistSq > 1.0f) {
+            float homeDist = std::sqrt(homeDistSq);
+            float homeStep = currentSpeed * profile.homeBias * 0.08f * dt;
+            dx += (homeDx / homeDist) * homeStep;
+            dz += (homeDz / homeDist) * homeStep;
+        }
     }
 
     // 应用移动
@@ -59,21 +88,24 @@ void FlyingCreature::updateMovement(float dt) {
 }
 
 void FlyingCreature::updateAI(float dt) {
-    // 飞行生物的默认AI行为
-    switch (aiState_) {
-        case shared::AIState::Idle:
-            if (stateTimer_ > shared::WorldConstants::IDLE_DURATION_MAX) {
-                setAIState(shared::AIState::Wander);
-            }
-            break;
-        case shared::AIState::Wander:
-            if (stateTimer_ > shared::WorldConstants::WANDER_DURATION_MAX) {
-                setAIState(shared::AIState::Idle);
-            }
-            break;
-        default:
-            break;
-    }
+    (void)dt;
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+
+    shared::AIState nextState = shared::chooseAIState(
+        aiState_,
+        profile,
+        behaviorState_,
+        context,
+        getHealthPercent(),
+        hasTarget(),
+        hasTarget(),
+        false,
+        false,
+        true,
+        false);
+
+    setAIState(nextState);
 }
 
 } // namespace oop

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "entt.hpp"
+#include "shared/behavior_rules.hpp"
+
 #include <cstdint>
 
 namespace ecs_entt {
@@ -53,5 +55,8 @@ struct TypeTag {
     bool isFlying = false;
     bool isAquatic = false;
 };
+
+// 共享运行时行为状态 - 与 OOP 侧的 BehaviorState 保持一致
+using BehaviorState = shared::BehaviorState;
 
 } // namespace ecs_entt

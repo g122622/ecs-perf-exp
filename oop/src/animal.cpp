@@ -18,6 +18,25 @@ void Animal::flee() {
 }
 
 void Animal::updateAI(float dt) {
+    (void)dt;
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+
+    shared::AIState nextState = shared::chooseAIState(
+        aiState_,
+        profile,
+        behaviorState_,
+        context,
+        getHealthPercent(),
+        hasTarget(),
+        hasTarget(),
+        false,
+        true,
+        false,
+        false);
+
+    setAIState(nextState);
+
     switch (aiState_) {
         case shared::AIState::Idle: {
             // 动物随机游荡

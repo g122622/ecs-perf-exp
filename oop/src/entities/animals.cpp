@@ -1,4 +1,7 @@
 #include "entities/animals.hpp"
+
+#include "shared/behavior_rules.hpp"
+
 #include <cmath>
 
 namespace oop {
@@ -37,7 +40,22 @@ Chicken::Chicken(EntityID id)
 
 void Chicken::update(float dt) {
     Animal::update(dt);
-    eggTimer_ += dt;
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 // ==================== Rabbit ====================
@@ -54,6 +72,7 @@ void Rabbit::update(float dt) {
 
 void Rabbit::updateFleeBehavior(float dt) {
     // 兔子特有的逃跑行为
+    (void)dt;
 }
 
 // ==================== Wolf ====================
@@ -68,6 +87,22 @@ void Wolf::update(float dt) {
 
 void Wolf::updatePackBehavior(float dt) {
     // 狼群行为
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 // ==================== Cat ====================
@@ -83,6 +118,22 @@ void Cat::update(float dt) {
 
 void Cat::updateAvoidPlayer(float dt) {
     // 猫躲避玩家
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 // ==================== Fox ====================
@@ -97,6 +148,22 @@ void Fox::update(float dt) {
 
 void Fox::updateNocturnalBehavior(float dt) {
     // 狐狸夜行行为
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 } // namespace oop

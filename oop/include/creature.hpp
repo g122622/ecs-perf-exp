@@ -1,6 +1,7 @@
 #pragma once
 
 #include "living_entity.hpp"
+#include "shared/behavior_rules.hpp"
 #include "shared/entity_types.hpp"
 
 namespace oop {
@@ -11,6 +12,8 @@ public:
     ~Creature() override = default;
 
     void update(float dt) override;
+    void initializeBehaviorState(float x, float y, float z);
+    void setWanderDirection(float dirX, float dirZ);
 
     // AI状态
     shared::AIState getAIState() const { return aiState_; }
@@ -58,6 +61,8 @@ protected:
     // 随机游荡方向
     float wanderDirX_ = 0.0f;
     float wanderDirZ_ = 0.0f;
+
+    shared::BehaviorState behaviorState_;
 };
 
 } // namespace oop

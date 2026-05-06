@@ -1,5 +1,7 @@
 #include "entities/flying.hpp"
-#include "shared/random_utils.hpp"
+
+#include "shared/behavior_rules.hpp"
+
 #include <cmath>
 
 namespace oop {
@@ -16,14 +18,22 @@ void Bat::update(float dt) {
 
 void Bat::updateRandomFlight(float dt) {
     // 蝙蝠随机飞行
-    if (stateTimer_ > 2.0f) {
-        // 随机改变方向
-        float angle = shared::randomAngle();
-        wanderDirX_ = std::cos(angle);
-        wanderDirZ_ = std::sin(angle);
-        targetFlightHeight_ = 5.0f + shared::randomFloat(0.0f, 10.0f);
-        stateTimer_ = 0.0f;
-    }
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 // ==================== Bee ====================
@@ -35,13 +45,27 @@ void Bee::update(float dt) {
     FlyingCreature::update(dt);
     updatePollination(dt);
 
-    if (stingCooldown_ > 0.0f) {
-        stingCooldown_ -= dt;
-    }
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 void Bee::updatePollination(float dt) {
     // 蜜蜂采蜜行为
+    (void)dt;
 }
 
 } // namespace oop

@@ -12,6 +12,7 @@ namespace oop {
 
 World::World()
     : nextId_(1) {
+    shared::resetSimulationClock();
 }
 
 EntityID World::spawnEntity(shared::EntityType type, float x, float y, float z) {
@@ -100,6 +101,9 @@ EntityID World::spawnEntity(shared::EntityType type, float x, float y, float z) 
 
     if (entity) {
         entity->setPosition(x, y, z);
+        if (auto* creature = dynamic_cast<Creature*>(entity.get()); creature != nullptr) {
+            creature->initializeBehaviorState(x, y, z);
+        }
         entities_.push_back(std::move(entity));
         return id;
     }
@@ -134,6 +138,8 @@ const Entity* World::getEntity(EntityID id) const {
 }
 
 void World::update(float dt) {
+    shared::advanceSimulationClock(dt);
+
     // Update all entities
     for (auto& entity : entities_) {
         if (entity && entity->isActive()) {
@@ -146,6 +152,7 @@ void World::update(float dt) {
 }
 
 void World::updateInteractions(float dt) {
+    (void)dt;
     // Collect hostile monsters and passive animals
     std::vector<Monster*> monsters;
     std::vector<Creature*> animals;
@@ -168,13 +175,18 @@ void World::updateInteractions(float dt) {
 
     // Process monster interactions
     for (auto* monster : monsters) {
-        // Find target if none
+        const auto& profile = shared::getBehaviorProfile(monster->getEntityType());
+        float px = monster->getX();
+        float py = monster->getY();
+        float pz = monster->getZ();
+        float rangeScale = 1.0f + profile.aggression * 0.15f + shared::simulationContext().lightLevel * 0.05f;
+        float range = monster->getPerceptionRange() * rangeScale;
+        float rangeSq = range * range;
+
+        // 先根据更细致的评分选择最近、最脆弱的猎物。
         if (!monster->hasTarget()) {
-            float px = monster->getX();
-            float py = monster->getY();
-            float pz = monster->getZ();
-            float range = monster->getPerceptionRange();
-            float rangeSq = range * range;
+            Creature* bestTarget = nullptr;
+            float bestScore = -1.0f;
 
             for (auto* animal : animals) {
                 if (!animal->isActive()) continue;
@@ -183,12 +195,30 @@ void World::updateInteractions(float dt) {
                 float dy = animal->getY() - py;
                 float dz = animal->getZ() - pz;
                 float distSq = dx * dx + dy * dy + dz * dz;
+                if (distSq > rangeSq) continue;
 
-                if (distSq <= rangeSq) {
-                    monster->setTargetId(animal->getId());
-                    monster->setAIState(shared::AIState::Chase);
-                    break;
+                auto* livingTarget = dynamic_cast<LivingEntity*>(animal);
+                float targetHealthPercent = livingTarget != nullptr ? livingTarget->getHealthPercent() : 1.0f;
+                float score = shared::scoreTargetCandidate(
+                    profile,
+                    shared::simulationContext(),
+                    distSq,
+                    targetHealthPercent,
+                    true,
+                    false,
+                    shared::isFlying(animal->getEntityType()),
+                    shared::isAquatic(animal->getEntityType()));
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestTarget = animal;
                 }
+            }
+
+            if (bestTarget != nullptr) {
+                monster->setTargetId(bestTarget->getId());
+                monster->setAIState(shared::AIState::Chase);
+                monster->setWanderDirection(bestTarget->getX() - px, bestTarget->getZ() - pz);
             }
         }
 
@@ -209,7 +239,9 @@ void World::updateInteractions(float dt) {
 
                     if (distSq <= attackRangeSq) {
                         // In attack range - attack
-                        monster->attack(targetLiving);
+                        monster->setAIState(shared::AIState::Attack);
+                        monster->setWanderDirection(dx, dz);
+                        monster->attack(targetLiving, distSq);
 
                         if (targetLiving->isDead()) {
                             monster->clearTarget();
@@ -219,6 +251,9 @@ void World::updateInteractions(float dt) {
                         // Too far - deaggro
                         monster->clearTarget();
                         monster->setAIState(shared::AIState::Wander);
+                    } else {
+                        monster->setAIState(shared::AIState::Chase);
+                        monster->setWanderDirection(dx, dz);
                     }
                 }
             } else {
@@ -226,6 +261,43 @@ void World::updateInteractions(float dt) {
                 monster->clearTarget();
                 monster->setAIState(shared::AIState::Wander);
             }
+        }
+    }
+
+    // 被动生物在低血量或被敌对目标逼近时更倾向逃跑。
+    for (auto* animal : animals) {
+        if (!animal->isActive()) continue;
+
+        const auto& profile = shared::getBehaviorProfile(animal->getEntityType());
+        float ax = animal->getX();
+        float ay = animal->getY();
+        float az = animal->getZ();
+        float perceptionRange = animal->getPerceptionRange() * (1.0f + profile.caution * 0.15f);
+        float perceptionRangeSq = perceptionRange * perceptionRange;
+
+        Monster* nearestThreat = nullptr;
+        float nearestThreatDistSq = perceptionRangeSq;
+
+        for (auto* monster : monsters) {
+            if (!monster->isActive()) continue;
+
+            float dx = monster->getX() - ax;
+            float dy = monster->getY() - ay;
+            float dz = monster->getZ() - az;
+            float distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < nearestThreatDistSq) {
+                nearestThreatDistSq = distSq;
+                nearestThreat = monster;
+            }
+        }
+
+        if (nearestThreat != nullptr) {
+            animal->setAIState(shared::AIState::Flee);
+            animal->setWanderDirection(ax - nearestThreat->getX(), az - nearestThreat->getZ());
+            animal->clearTarget();
+        } else if (dynamic_cast<LivingEntity*>(animal)->getHealthPercent() <= profile.fleeHealthThreshold) {
+            animal->setAIState(shared::AIState::Flee);
         }
     }
 }

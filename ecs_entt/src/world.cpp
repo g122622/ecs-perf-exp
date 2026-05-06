@@ -1,7 +1,7 @@
 #include "world.hpp"
-#include "shared/random_utils.hpp"
-#include <cmath>
+
 #include <algorithm>
+#include <cmath>
 
 namespace ecs_entt {
 
@@ -9,6 +9,7 @@ World::World(size_t initialCapacity)
     : registry_() {
     (void)initialCapacity;
     // Note: reserve() not available in EnTT 3.x, entities are created on demand
+    shared::resetSimulationClock();
 }
 
 Entity World::createEntity(shared::EntityType type, float x, float y, float z) {
@@ -26,6 +27,8 @@ bool World::isAlive(Entity entity) const {
 }
 
 void World::update(float dt) {
+    shared::advanceSimulationClock(dt);
+
     // Update in order: AI -> Movement -> Decay -> Interaction
     AISystem::update(registry_, dt);
     MovementSystem::update(registry_, dt);
@@ -55,9 +58,12 @@ void World::createEntityComponents(Entity entity, shared::EntityType type,
     ai.perceptionRange = config.perceptionRange;
     if (shared::isFlying(type)) {
         ai.stateDuration = config.flightHeight;
-    } else if (type == shared::EntityType::Fish) {
-        ai.stateDuration = shared::randomAngle();
     }
+
+    // 运行时行为状态
+    auto& behavior = registry_.emplace<BehaviorState>(entity);
+    shared::initializeBehaviorState(behavior, x, y, z);
+    shared::setHeadingFromStableAngle(type, behavior, shared::simulationContext().elapsedTime, ai.wanderDirX, ai.wanderDirZ);
 
     // Attributes
     auto& attr = registry_.emplace<Attributes>(entity);
@@ -79,15 +85,24 @@ void World::createEntityComponents(Entity entity, shared::EntityType type,
 
 // MovementSystem
 void MovementSystem::update(entt::registry& registry, float dt) {
-    auto view = registry.view<Transform, AI, Attributes, TypeTag>();
+    auto view = registry.view<Transform, AI, Attributes, TypeTag, BehaviorState>();
 
     for (auto entity : view) {
         auto& transform = view.get<Transform>(entity);
         auto& ai = view.get<AI>(entity);
         auto& attr = view.get<Attributes>(entity);
         auto& tag = view.get<TypeTag>(entity);
+        auto& behavior = view.get<BehaviorState>(entity);
+
+        if (registry.all_of<Health>(entity)) {
+            const auto& health = registry.get<Health>(entity);
+            if (health.isDead) {
+                continue;
+            }
+        }
 
         const auto entityType = static_cast<shared::EntityType>(tag.type);
+        const auto& profile = shared::getBehaviorProfile(entityType);
 
         float dx = 0.0f, dz = 0.0f;
         float speed = attr.moveSpeed;
@@ -95,37 +110,54 @@ void MovementSystem::update(entt::registry& registry, float dt) {
         const bool isFish = entityType == shared::EntityType::Fish;
 
         if (isBat || isFish) {
-            if (ai.stateTimer > (isBat ? 2.0f : 1.0f)) {
-                if (isBat) {
-                    float angle = shared::randomAngle();
-                    ai.wanderDirX = std::cos(angle);
-                    ai.wanderDirZ = std::sin(angle);
-                    ai.stateDuration = 5.0f + shared::randomFloat(0.0f, 10.0f);
-                } else {
-                    ai.stateDuration += shared::randomFloat(-0.25f, 0.25f);
-                    ai.wanderDirX = std::cos(ai.stateDuration);
-                    ai.wanderDirZ = std::sin(ai.stateDuration);
-                }
-
-                ai.stateTimer = 0.0f;
-            }
-
             if (isFish) {
                 speed = (transform.y < shared::WorldConstants::WATER_LEVEL) ? attr.swimSpeed : attr.moveSpeed;
             }
+        }
 
-            switch (ai.state) {
-                case 1: // Wander
-                    dx = ai.wanderDirX * speed * dt;
-                    dz = ai.wanderDirZ * speed * dt;
-                    break;
-                case 2: // Chase
-                case 3: // Flee
-                    dx = ai.wanderDirX * speed * 1.5f * dt;
-                    dz = ai.wanderDirZ * speed * 1.5f * dt;
-                    break;
-                default:
-                    break;
+        auto& behaviorState = behavior;
+        const auto& context = shared::simulationContext();
+        float healthPercent = 1.0f;
+        if (registry.all_of<Health>(entity)) {
+            const auto& health = registry.get<Health>(entity);
+            if (health.maximum > 0) {
+                healthPercent = static_cast<float>(health.current) / static_cast<float>(health.maximum);
+            }
+        }
+
+        float speedScale = shared::computeActivityMultiplier(profile, behaviorState, context, static_cast<shared::AIState>(ai.state), healthPercent, tag.isFlying, tag.isAquatic);
+        speed *= speedScale;
+
+        switch (static_cast<shared::AIState>(ai.state)) {
+            case shared::AIState::Wander:
+                dx = ai.wanderDirX * speed * dt;
+                dz = ai.wanderDirZ * speed * dt;
+                break;
+            case shared::AIState::Chase:
+                dx = ai.wanderDirX * speed * 1.35f * dt;
+                dz = ai.wanderDirZ * speed * 1.35f * dt;
+                break;
+            case shared::AIState::Flee:
+                dx = ai.wanderDirX * speed * 1.6f * dt;
+                dz = ai.wanderDirZ * speed * 1.6f * dt;
+                break;
+            case shared::AIState::Attack:
+                dx = ai.wanderDirX * speed * 0.35f * dt;
+                dz = ai.wanderDirZ * speed * 0.35f * dt;
+                break;
+            default:
+                break;
+        }
+
+        if (profile.homeBias > 0.0f) {
+            float homeDx = behaviorState.homeX - transform.x;
+            float homeDz = behaviorState.homeZ - transform.z;
+            float homeDistSq = homeDx * homeDx + homeDz * homeDz;
+            if (homeDistSq > 1.0f) {
+                float homeDist = std::sqrt(homeDistSq);
+                float homeStep = speed * profile.homeBias * 0.10f * dt;
+                dx += (homeDx / homeDist) * homeStep;
+                dz += (homeDz / homeDist) * homeStep;
             }
         }
 
@@ -133,15 +165,63 @@ void MovementSystem::update(entt::registry& registry, float dt) {
         transform.z += dz;
 
         if (tag.isFlying) {
-            float targetHeight = (entityType == shared::EntityType::Bat) ? ai.stateDuration : attr.flightHeight;
+            float targetHeight = attr.flightHeight;
+            targetHeight += profile.verticalBias * 4.0f;
+            if (shared::simulationContext().isNight) {
+                targetHeight += profile.nightAffinity * 1.5f;
+            }
             float heightDiff = targetHeight - transform.y;
             if (std::abs(heightDiff) > 0.1f) {
-                transform.y += std::copysign(attr.moveSpeed * dt, heightDiff);
+                transform.y += std::copysign(attr.moveSpeed * speedScale * dt, heightDiff);
             }
             transform.y = std::clamp(transform.y, 1.0f, shared::WorldConstants::WORLD_SIZE_Y);
+        } else if (tag.isAquatic) {
+            float waterTarget = shared::WorldConstants::WATER_LEVEL - (2.0f + profile.waterBias * 6.0f);
+            float heightDiff = waterTarget - transform.y;
+            transform.y += heightDiff * std::min(1.0f, dt * 0.35f);
+            transform.y = std::clamp(transform.y, 0.0f, shared::WorldConstants::WORLD_SIZE_Y);
         } else {
             transform.y = std::clamp(transform.y, 0.0f, shared::WorldConstants::WORLD_SIZE_Y);
         }
+
+        // 共享特殊行为：同一套规则在 OOP 和 ECS 中保持一致。
+        float targetDistanceSq = 1.0e30f;
+        bool hasTarget = ai.target != NullEntity && registry.valid(ai.target);
+        if (hasTarget && registry.all_of<Transform>(ai.target)) {
+            const auto& targetTransform = registry.get<Transform>(ai.target);
+            float dxTarget = targetTransform.x - transform.x;
+            float dyTarget = targetTransform.y - transform.y;
+            float dzTarget = targetTransform.z - transform.z;
+            targetDistanceSq = dxTarget * dxTarget + dyTarget * dyTarget + dzTarget * dzTarget;
+        }
+
+        shared::AIState currentState = static_cast<shared::AIState>(ai.state);
+        shared::AIState specialState = currentState;
+
+        if (shared::updateSpecialBehavior(
+                entityType,
+                shared::getEntityConfig(entityType),
+                profile,
+                behaviorState,
+            specialState,
+                transform.x,
+                transform.y,
+                transform.z,
+                ai.wanderDirX,
+                ai.wanderDirZ,
+                dt,
+                hasTarget,
+                targetDistanceSq,
+                attr.attackRange * attr.attackRange,
+                context) == shared::SpecialBehaviorResult::Deactivate) {
+            if (registry.all_of<Health>(entity)) {
+                auto& health = registry.get<Health>(entity);
+                health.current = 0;
+                health.isDead = true;
+            }
+        }
+
+        ai.state = static_cast<uint8_t>(specialState);
 
         // World bounds
         transform.x = std::clamp(transform.x, 0.0f, shared::WorldConstants::WORLD_SIZE_X);
@@ -151,104 +231,63 @@ void MovementSystem::update(entt::registry& registry, float dt) {
 
 // AISystem
 void AISystem::update(entt::registry& registry, float dt) {
-    auto view = registry.view<AI, Attributes, Health, TypeTag>();
+    auto view = registry.view<AI, Attributes, Health, TypeTag, BehaviorState>();
 
     for (auto entity : view) {
         auto& ai = view.get<AI>(entity);
         auto& attr = view.get<Attributes>(entity);
         auto& health = view.get<Health>(entity);
         auto& tag = view.get<TypeTag>(entity);
+        auto& behavior = view.get<BehaviorState>(entity);
 
-        ai.stateTimer += dt;
+        if (health.isDead) {
+            continue;
+        }
+
+        const auto entityType = static_cast<shared::EntityType>(tag.type);
+        const auto& profile = shared::getBehaviorProfile(entityType);
+        const auto& context = shared::simulationContext();
+
+        shared::AIState currentState = static_cast<shared::AIState>(ai.state);
+        float healthPercent = health.maximum > 0 ? static_cast<float>(health.current) / static_cast<float>(health.maximum) : 1.0f;
+
+        shared::updateBehaviorState(
+            behavior,
+            profile,
+            currentState,
+            dt,
+            currentState == shared::AIState::Wander ||
+                currentState == shared::AIState::Chase ||
+                currentState == shared::AIState::Flee ||
+                currentState == shared::AIState::Attack,
+            healthPercent,
+            context);
 
         // Attack cooldown
         if (attr.attackCooldownTimer > 0.0f) {
             attr.attackCooldownTimer -= dt;
         }
 
-        // State machine
-        if (tag.isMonster) {
-            switch (ai.state) {
-                case 0: // Idle
-                    if (ai.stateTimer > shared::WorldConstants::IDLE_DURATION_MAX) {
-                        ai.state = 1; // Wander
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-                case 1: // Wander
-                    if (ai.target != NullEntity && registry.valid(ai.target)) {
-                        ai.state = 2; // Chase
-                        ai.stateTimer = 0.0f;
-                    } else if (ai.stateTimer > shared::WorldConstants::WANDER_DURATION_MAX) {
-                        ai.state = 0; // Idle
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-                case 2: // Chase
-                    if (ai.target == NullEntity || !registry.valid(ai.target)) {
-                        ai.target = NullEntity;
-                        ai.state = 1;
-                        ai.stateTimer = 0.0f;
-                    } else if (ai.stateTimer > shared::WorldConstants::CHASE_DURATION_MAX) {
-                        ai.target = NullEntity;
-                        ai.state = 1;
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-                case 3: // Flee
-                    if (ai.stateTimer > shared::WorldConstants::FLEE_DURATION_MAX) {
-                        ai.state = 1;
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-            }
-        } else if (tag.isAnimal) {
-            switch (ai.state) {
-                case 0: // Idle
-                    if (ai.stateTimer > shared::WorldConstants::IDLE_DURATION_MAX * 0.5f) {
-                        ai.state = 1; // Wander
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-                case 1: // Wander
-                    if (ai.stateTimer > shared::WorldConstants::WANDER_DURATION_MAX) {
-                        ai.state = 0; // Idle
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-                case 3: // Flee
-                    if (ai.stateTimer > shared::WorldConstants::FLEE_DURATION_MAX) {
-                        ai.state = 1;
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-            }
+        bool hasTarget = ai.target != NullEntity && registry.valid(ai.target);
+        shared::AIState nextState = shared::chooseAIState(
+            currentState,
+            profile,
+            behavior,
+            context,
+            healthPercent,
+            hasTarget,
+            hasTarget,
+            tag.isMonster,
+            tag.isAnimal,
+            tag.isFlying,
+            tag.isAquatic);
 
-            if (health.maximum > 0) {
-                float healthPercent = static_cast<float>(health.current) / static_cast<float>(health.maximum);
-                if (healthPercent < 0.3f && ai.state != 3) {
-                    ai.state = 3; // Flee
-                    ai.stateTimer = 0.0f;
-                }
-            }
-        } else {
-            switch (ai.state) {
-                case 0: // Idle
-                    if (ai.stateTimer > shared::WorldConstants::IDLE_DURATION_MAX) {
-                        ai.state = 1; // Wander
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-                case 1: // Wander
-                    if (ai.stateTimer > shared::WorldConstants::WANDER_DURATION_MAX) {
-                        ai.state = 0; // Idle
-                        ai.stateTimer = 0.0f;
-                    }
-                    break;
-                default:
-                    break;
-            }
+        if (!hasTarget && currentState == shared::AIState::Chase && nextState != shared::AIState::Chase) {
+            ai.target = NullEntity;
         }
+
+        ai.state = static_cast<uint8_t>(nextState);
+        ai.stateTimer += dt;
     }
 }
 
@@ -271,36 +310,66 @@ void DecaySystem::update(entt::registry& registry, float dt) {
 
 // InteractionSystem
 void InteractionSystem::update(entt::registry& registry, float dt) {
-    auto hostiles = registry.view<Transform, AI, Attributes, Health, TypeTag>();
-    auto passives = registry.view<Transform, TypeTag, Health>();
+    (void)dt;
+    auto hostiles = registry.view<Transform, AI, Attributes, Health, TypeTag, BehaviorState>();
+    auto passives = registry.view<Transform, AI, TypeTag, Health, BehaviorState>();
+
+    const auto& context = shared::simulationContext();
 
     for (auto entity : hostiles) {
         auto& transform = hostiles.get<Transform>(entity);
         auto& ai = hostiles.get<AI>(entity);
         auto& attr = hostiles.get<Attributes>(entity);
+        auto& health = hostiles.get<Health>(entity);
+        auto& behavior = hostiles.get<BehaviorState>(entity);
 
         auto entityType = static_cast<shared::EntityType>(hostiles.get<TypeTag>(entity).type);
 
+        if (health.isDead) {
+            continue;
+        }
+
         // Find passive targets for hostile entities
         if (shared::isMonster(entityType) && ai.target == NullEntity) {
+            Entity bestTarget = NullEntity;
+            float bestScore = -1.0f;
+
             for (auto target : passives) {
                 if (entity == target) continue;
 
                 auto& targetTransform = passives.get<Transform>(target);
                 auto& tag = passives.get<TypeTag>(target);
+                auto& targetHealth = passives.get<Health>(target);
 
-                if (tag.isAnimal) {
+                if (tag.isAnimal && !targetHealth.isDead) {
                     float dx = targetTransform.x - transform.x;
                     float dy = targetTransform.y - transform.y;
                     float dz = targetTransform.z - transform.z;
                     float distSq = dx * dx + dy * dy + dz * dz;
 
-                    if (distSq <= ai.perceptionRange * ai.perceptionRange) {
-                        ai.target = target;
-                        ai.state = 2; // Chase
-                        break;
+                    float targetHealthPercent = targetHealth.maximum > 0 ? static_cast<float>(targetHealth.current) / static_cast<float>(targetHealth.maximum) : 1.0f;
+                    float score = shared::scoreTargetCandidate(
+                        shared::getBehaviorProfile(entityType),
+                        context,
+                        distSq,
+                        targetHealthPercent,
+                        true,
+                        false,
+                        tag.isFlying,
+                        tag.isAquatic);
+
+                    if (score > bestScore && distSq <= ai.perceptionRange * ai.perceptionRange) {
+                        bestScore = score;
+                        bestTarget = target;
                     }
                 }
+            }
+
+            if (bestTarget != NullEntity) {
+                ai.target = bestTarget;
+                ai.state = static_cast<uint8_t>(shared::AIState::Chase);
+                auto& targetTransform = passives.get<Transform>(bestTarget);
+                shared::setHeadingFromVector(targetTransform.x - transform.x, targetTransform.z - transform.z, ai.wanderDirX, ai.wanderDirZ);
             }
         }
 
@@ -318,7 +387,14 @@ void InteractionSystem::update(entt::registry& registry, float dt) {
                 if (distSq <= rangeSq) {
                     if (registry.all_of<Health>(ai.target)) {
                         auto& targetHealth = registry.get<Health>(ai.target);
-                        targetHealth.current -= static_cast<int>(attr.attackDamage);
+                        float damageScale = shared::computeAttackDamageScale(
+                            shared::getBehaviorProfile(entityType),
+                            behavior,
+                            context,
+                            distSq,
+                            rangeSq);
+                        int damage = std::max(1, static_cast<int>(std::round(attr.attackDamage * damageScale)));
+                        targetHealth.current -= damage;
                         if (targetHealth.current <= 0) {
                             targetHealth.isDead = true;
                         }
@@ -326,17 +402,70 @@ void InteractionSystem::update(entt::registry& registry, float dt) {
 
                         if (targetHealth.isDead) {
                             ai.target = NullEntity;
-                            ai.state = 1;
+                            ai.state = static_cast<uint8_t>(shared::AIState::Wander);
                         }
                     }
                 } else if (distSq > shared::WorldConstants::DEAGGRO_RANGE * shared::WorldConstants::DEAGGRO_RANGE) {
                     ai.target = NullEntity;
-                    ai.state = 1;
+                    ai.state = static_cast<uint8_t>(shared::AIState::Wander);
                 }
             } else {
                 ai.target = NullEntity;
-                ai.state = 1;
+                ai.state = static_cast<uint8_t>(shared::AIState::Wander);
             }
+        }
+
+    }
+
+    for (auto entity : passives) {
+        auto& transform = passives.get<Transform>(entity);
+        auto& ai = passives.get<AI>(entity);
+        auto& tag = passives.get<TypeTag>(entity);
+        auto& health = passives.get<Health>(entity);
+        auto& behavior = passives.get<BehaviorState>(entity);
+
+        if (!tag.isAnimal || health.isDead) {
+            continue;
+        }
+
+        const auto& profile = shared::getBehaviorProfile(static_cast<shared::EntityType>(tag.type));
+        float perceptionRange = 0.0f;
+        if (health.maximum > 0) {
+            perceptionRange = 1.0f + profile.caution * 0.15f;
+        }
+        perceptionRange = (tag.isAquatic ? shared::WorldConstants::INTERACTION_RANGE : shared::WorldConstants::INTERACTION_RANGE) * perceptionRange;
+
+        Entity nearestThreat = NullEntity;
+        float nearestThreatDistSq = perceptionRange * perceptionRange;
+
+        for (auto hostile : hostiles) {
+            auto& hostileTransform = hostiles.get<Transform>(hostile);
+            auto& hostileTag = hostiles.get<TypeTag>(hostile);
+            auto& hostileHealth = hostiles.get<Health>(hostile);
+
+            if (!hostileTag.isMonster || hostileHealth.isDead) {
+                continue;
+            }
+
+            float dx = hostileTransform.x - transform.x;
+            float dy = hostileTransform.y - transform.y;
+            float dz = hostileTransform.z - transform.z;
+            float distSq = dx * dx + dy * dy + dz * dz;
+
+            if (distSq < nearestThreatDistSq) {
+                nearestThreatDistSq = distSq;
+                nearestThreat = hostile;
+            }
+        }
+
+        if (nearestThreat != NullEntity || (health.maximum > 0 && static_cast<float>(health.current) / static_cast<float>(health.maximum) <= profile.fleeHealthThreshold)) {
+            if (nearestThreat != NullEntity) {
+                auto& threatTransform = hostiles.get<Transform>(nearestThreat);
+                shared::setHeadingFromVector(transform.x - threatTransform.x, transform.z - threatTransform.z, ai.wanderDirX, ai.wanderDirZ);
+            }
+
+            ai.state = static_cast<uint8_t>(shared::AIState::Flee);
+            behavior.alertness = 1.0f;
         }
     }
 }

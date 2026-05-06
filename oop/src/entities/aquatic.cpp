@@ -1,6 +1,8 @@
 #include "entities/aquatic.hpp"
-#include "shared/random_utils.hpp"
+
+#include "shared/behavior_rules.hpp"
 #include "shared/constants.hpp"
+
 #include <cmath>
 
 namespace oop {
@@ -8,7 +10,7 @@ namespace oop {
 // ==================== Fish ====================
 Fish::Fish(EntityID id)
     : AquaticCreature(id, 3, shared::EntityType::Fish, shared::getEntityConfig(shared::EntityType::Fish).swimSpeed, false) {
-    swimDirection_ = shared::randomAngle();
+    swimDirection_ = 0.0f;
 }
 
 void Fish::update(float dt) {
@@ -18,12 +20,22 @@ void Fish::update(float dt) {
 
 void Fish::updateSwimBehavior(float dt) {
     // 鱼随机游动
-    if (stateTimer_ > 1.0f) {
-        swimDirection_ += shared::randomFloat(-0.25f, 0.25f);
-        wanderDirX_ = std::cos(swimDirection_);
-        wanderDirZ_ = std::sin(swimDirection_);
-        stateTimer_ = 0.0f;
-    }
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 // ==================== Squid ====================
@@ -42,6 +54,22 @@ void Squid::update(float dt) {
 
 void Squid::updateInkDefense(float dt) {
     // 鱿鱼喷墨逃跑
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 // ==================== Dolphin ====================
@@ -60,12 +88,22 @@ void Dolphin::update(float dt) {
 
 void Dolphin::updateJumpBehavior(float dt) {
     // 海豚跳跃行为
-    if (y_ < shared::WorldConstants::WATER_LEVEL && jumpCooldown_ <= 0.0f) {
-        if (shared::randomFloat(0.0f, 1.0f) < 0.005f) {  // 随机跳跃
-            isJumping_ = true;
-            jumpCooldown_ = JUMP_COOLDOWN;
-        }
-    }
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 // ==================== Turtle ====================
@@ -81,9 +119,22 @@ void Turtle::update(float dt) {
 
 void Turtle::updateEggLaying(float dt) {
     // 海龟产卵行为
-    if (isOnLand_) {
-        eggTimer_ += dt;
-    }
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        shared::getBehaviorProfile(entityType_),
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        0.0f,
+        shared::simulationContext());
 }
 
 } // namespace oop

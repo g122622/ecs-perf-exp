@@ -1,4 +1,7 @@
 #include "entities/monsters.hpp"
+
+#include "shared/behavior_rules.hpp"
+
 #include <cmath>
 
 namespace oop {
@@ -15,7 +18,7 @@ void Zombie::update(float dt) {
 
 void Zombie::updateBehavior(float dt) {
     // 僵尸特有的行为逻辑
-    // 基础Monster AI已经处理了大部分逻辑
+    (void)dt;
 }
 
 // ==================== Skeleton ====================
@@ -30,6 +33,7 @@ void Skeleton::update(float dt) {
 
 void Skeleton::updateRangedAttack(float dt) {
     // 远程攻击逻辑
+    (void)dt;
 }
 
 // ==================== Spider ====================
@@ -52,12 +56,27 @@ void Creeper::update(float dt) {
 }
 
 void Creeper::updateExplosion(float dt) {
-    if (isIgnited_) {
-        fuseTime_ += dt;
-        if (fuseTime_ >= MAX_FUSE) {
-            // 爆炸
-            active_ = false;
-        }
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+    auto result = shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        profile,
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        attackRange_ * attackRange_,
+        context);
+
+    if (result == shared::SpecialBehaviorResult::Deactivate) {
+        active_ = false;
     }
 }
 
@@ -72,9 +91,24 @@ void Enderman::update(float dt) {
 }
 
 void Enderman::updateTeleport(float dt) {
-    if (teleportCooldown_ > 0.0f) {
-        teleportCooldown_ -= dt;
-    }
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        profile,
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        attackRange_ * attackRange_,
+        context);
 }
 
 // ==================== Blaze ====================
@@ -90,9 +124,24 @@ void Blaze::update(float dt) {
 }
 
 void Blaze::updateFireballAttack(float dt) {
-    if (fireballCooldown_ > 0.0f) {
-        fireballCooldown_ -= dt;
-    }
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        profile,
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        attackRange_ * attackRange_,
+        context);
 }
 
 // ==================== Ghast ====================
@@ -107,9 +156,24 @@ void Ghast::update(float dt) {
 }
 
 void Ghast::updateFireballAttack(float dt) {
-    if (fireballCooldown_ > 0.0f) {
-        fireballCooldown_ -= dt;
-    }
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        profile,
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        attackRange_ * attackRange_,
+        context);
 }
 
 // ==================== Phantom ====================
@@ -124,13 +188,24 @@ void Phantom::update(float dt) {
 }
 
 void Phantom::updateDiveAttack(float dt) {
-    if (diveCooldown_ > 0.0f) {
-        diveCooldown_ -= dt;
-    }
-
-    if (isDiving_) {
-        // 俯冲攻击逻辑
-    }
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+    (void)shared::updateSpecialBehavior(
+        entityType_,
+        shared::getEntityConfig(entityType_),
+        profile,
+        behaviorState_,
+        aiState_,
+        x_,
+        y_,
+        z_,
+        wanderDirX_,
+        wanderDirZ_,
+        dt,
+        hasTarget(),
+        0.0f,
+        attackRange_ * attackRange_,
+        context);
 }
 
 } // namespace oop

@@ -10,6 +10,13 @@ struct WorldConstants {
 
     static constexpr float WATER_LEVEL = 30.0f;    // 水面高度
 
+    // 昼夜循环参数
+    static constexpr float DAY_NIGHT_CYCLE_SECONDS = 240.0f;   // 一个完整昼夜周期
+    static constexpr float DAY_PHASE_END = 0.22f;               // 白天结束的相位点
+    static constexpr float NIGHT_PHASE_START = 0.72f;           // 夜晚开始的相位点
+    static constexpr float DAY_LIGHT_LEVEL = 1.0f;             // 白天亮度倍率
+    static constexpr float NIGHT_LIGHT_LEVEL = 0.35f;          // 夜晚亮度倍率
+
     // 物理参数
     static constexpr float GRAVITY = 9.81f;
     static constexpr float AIR_DRAG = 0.98f;       // 空气阻力

@@ -18,7 +18,7 @@ public:
 
     // 攻击冷却
     bool canAttack() const { return attackCooldown_ <= 0.0f; }
-    void attack(LivingEntity* target);
+    void attack(LivingEntity* target, float distanceSq);
 
     // 类型检查
     bool isMonster() const override { return true; }

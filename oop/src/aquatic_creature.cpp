@@ -1,7 +1,8 @@
 #include "aquatic_creature.hpp"
 #include "shared/constants.hpp"
-#include <cmath>
+
 #include <algorithm>
+#include <cmath>
 
 namespace oop {
 
@@ -29,7 +30,10 @@ void AquaticCreature::update(float dt) {
 void AquaticCreature::updateMovement(float dt) {
     // 水生生物的游泳移动
     float dx = 0.0f, dz = 0.0f;
-    float speed = (y_ < shared::WorldConstants::WATER_LEVEL) ? swimSpeed_ : moveSpeed_;
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+    float speedScale = shared::computeActivityMultiplier(profile, behaviorState_, context, aiState_, getHealthPercent(), false, true);
+    float speed = ((y_ < shared::WorldConstants::WATER_LEVEL) ? swimSpeed_ : moveSpeed_) * speedScale;
 
     switch (aiState_) {
         case shared::AIState::Wander: {
@@ -43,8 +47,25 @@ void AquaticCreature::updateMovement(float dt) {
             dz = wanderDirZ_ * speed * 1.5f * dt;
             break;
         }
+        case shared::AIState::Attack: {
+            dx = wanderDirX_ * speed * 0.4f * dt;
+            dz = wanderDirZ_ * speed * 0.4f * dt;
+            break;
+        }
         default:
             break;
+    }
+
+    if (profile.homeBias > 0.0f) {
+        float homeDx = behaviorState_.homeX - x_;
+        float homeDz = behaviorState_.homeZ - z_;
+        float homeDistSq = homeDx * homeDx + homeDz * homeDz;
+        if (homeDistSq > 1.0f) {
+            float homeDist = std::sqrt(homeDistSq);
+            float homeStep = speed * profile.homeBias * 0.08f * dt;
+            dx += (homeDx / homeDist) * homeStep;
+            dz += (homeDz / homeDist) * homeStep;
+        }
     }
 
     // 应用移动
@@ -58,21 +79,24 @@ void AquaticCreature::updateMovement(float dt) {
 }
 
 void AquaticCreature::updateAI(float dt) {
-    // 水生生物的默认AI行为
-    switch (aiState_) {
-        case shared::AIState::Idle:
-            if (stateTimer_ > shared::WorldConstants::IDLE_DURATION_MAX) {
-                setAIState(shared::AIState::Wander);
-            }
-            break;
-        case shared::AIState::Wander:
-            if (stateTimer_ > shared::WorldConstants::WANDER_DURATION_MAX) {
-                setAIState(shared::AIState::Idle);
-            }
-            break;
-        default:
-            break;
-    }
+    (void)dt;
+    const auto& profile = shared::getBehaviorProfile(entityType_);
+    const auto& context = shared::simulationContext();
+
+    shared::AIState nextState = shared::chooseAIState(
+        aiState_,
+        profile,
+        behaviorState_,
+        context,
+        getHealthPercent(),
+        hasTarget(),
+        hasTarget(),
+        false,
+        false,
+        false,
+        true);
+
+    setAIState(nextState);
 }
 
 } // namespace oop
