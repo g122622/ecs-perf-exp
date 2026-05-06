@@ -1,0 +1,54 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# IDE and editor files
+.idea/
+.vs/
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+*.userprefs
+*.sln
+*.vcxproj*
+
+# Compiled files
+*.obj
+*.o
+*.exe
+*.dll
+*.lib
+*.a
+*.so
+*.dylib
+*.pdb
+*.ilk
+*.exp
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake.in
+
+# Output files
+results/*.csv
+results/*.pdf
+!results/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.env/
+venv/
+.venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
