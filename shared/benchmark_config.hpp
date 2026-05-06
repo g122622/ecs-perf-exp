@@ -17,10 +17,10 @@ enum class BenchmarkScale : uint8_t {
 // 规模对应的实体数量
 inline size_t getEntityCount(BenchmarkScale scale) {
     switch (scale) {
-        case BenchmarkScale::Small:   return 1000;
-        case BenchmarkScale::Medium:  return 5000;
-        case BenchmarkScale::Large:   return 20000;
-        case BenchmarkScale::XLarge:  return 1000000;
+        case BenchmarkScale::Small:   return 50000;
+        case BenchmarkScale::Medium:  return 100000;
+        case BenchmarkScale::Large:   return 300000;
+        case BenchmarkScale::XLarge:  return 500000;
         default: return 100;
     }
 }
