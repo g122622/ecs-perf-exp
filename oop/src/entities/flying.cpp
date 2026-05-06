@@ -1,4 +1,5 @@
 #include "entities/flying.hpp"
+#include "shared/random_utils.hpp"
 #include <cmath>
 
 namespace oop {
@@ -17,10 +18,10 @@ void Bat::updateRandomFlight(float dt) {
     // 蝙蝠随机飞行
     if (stateTimer_ > 2.0f) {
         // 随机改变方向
-        float angle = static_cast<float>(rand()) / RAND_MAX * 2.0f * 3.14159265f;
+        float angle = shared::randomAngle();
         wanderDirX_ = std::cos(angle);
         wanderDirZ_ = std::sin(angle);
-        targetFlightHeight_ = 5.0f + static_cast<float>(rand()) / RAND_MAX * 10.0f;
+        targetFlightHeight_ = 5.0f + shared::randomFloat(0.0f, 10.0f);
         stateTimer_ = 0.0f;
     }
 }

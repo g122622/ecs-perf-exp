@@ -4,7 +4,6 @@
 #include "components.hpp"
 #include "shared/entity_types.hpp"
 #include "shared/constants.hpp"
-#include <random>
 
 namespace ecs_entt {
 
@@ -46,10 +45,6 @@ public:
     // Clear
     void clear() { registry_.clear(); }
 
-    // RNG
-    std::mt19937& getRNG() { return rng_; }
-    void setSeed(unsigned int seed) { rng_.seed(seed); }
-
     // Registry access (for views)
     entt::registry& registry() { return registry_; }
     const entt::registry& registry() const { return registry_; }
@@ -58,17 +53,9 @@ private:
     void createEntityComponents(Entity entity, shared::EntityType type, float x, float y, float z);
 
     entt::registry registry_;
-    std::mt19937 rng_;
-    std::uniform_real_distribution<float> dist_;
 };
 
-// System implementations
 class MovementSystem {
-public:
-    static void update(entt::registry& registry, float dt);
-};
-
-class PhysicsSystem {
 public:
     static void update(entt::registry& registry, float dt);
 };

@@ -20,7 +20,7 @@ inline size_t getEntityCount(BenchmarkScale scale) {
         case BenchmarkScale::Small:   return 1000;
         case BenchmarkScale::Medium:  return 5000;
         case BenchmarkScale::Large:   return 20000;
-        case BenchmarkScale::XLarge:  return 100000;
+        case BenchmarkScale::XLarge:  return 1000000;
         default: return 100;
     }
 }
@@ -33,7 +33,7 @@ struct BenchmarkConfig {
     std::string outputPath;
 
     static BenchmarkConfig create(BenchmarkScale scale,
-                                   size_t frames = 10000,
+                                   size_t frames = 100,
                                    unsigned int seed = 12345,
                                    const std::string& output = "./results") {
         return {

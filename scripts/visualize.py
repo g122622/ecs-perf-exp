@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_RESULTS_DIR = PROJECT_ROOT / 'results'
+
 def load_csv_results(results_dir):
     """Load all benchmark CSV files."""
     results = {}
@@ -384,8 +387,8 @@ def generate_summary_table(results, output_dir):
     print('\n'.join(lines))
 
 def main():
-    results_dir = './results'
-    output_dir = './results'
+    results_dir = str(DEFAULT_RESULTS_DIR)
+    output_dir = str(DEFAULT_RESULTS_DIR)
 
     import sys
     if len(sys.argv) > 1:

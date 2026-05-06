@@ -6,6 +6,8 @@
 #include "shared/entity_types.hpp"
 #include "shared/constants.hpp"
 #include "shared/benchmark_config.hpp"
+#include "shared/random_utils.hpp"
+#include <filesystem>
 #include <iostream>
 #include <iomanip>
 #include <random>
@@ -13,6 +15,20 @@
 using namespace benchmark;
 using namespace oop;
 using namespace shared;
+
+namespace {
+
+std::filesystem::path getProjectResultsDir(const char* executablePath) {
+    std::filesystem::path projectDir = std::filesystem::absolute(executablePath).parent_path();
+
+    for (int i = 0; i < 3; ++i) {
+        projectDir = projectDir.parent_path();
+    }
+
+    return projectDir / "results";
+}
+
+} // namespace
 
 // 生成随机位置
 void generateRandomPosition(std::mt19937& rng, float& x, float& y, float& z) {
@@ -53,13 +69,15 @@ int main(int argc, char* argv[]) {
     std::cout << std::endl;
 
     // 配置
-    std::string outputPath = "./results";
+    std::filesystem::path outputPath = getProjectResultsDir(argc > 0 ? argv[0] : "");
     if (argc > 1) {
-        outputPath = argv[1];
+        outputPath = std::filesystem::path(argv[1]);
     }
 
+    std::filesystem::create_directories(outputPath);
+
     // 创建benchmark runner
-    BenchmarkRunner runner(outputPath);
+    BenchmarkRunner runner(outputPath.string());
 
     // 测试配置
     auto configs = getAllBenchmarkConfigs();
@@ -78,10 +96,10 @@ int main(int argc, char* argv[]) {
         // 初始化随机数生成器
         std::mt19937 rng(config.randomSeed);
         MemoryTracker::instance().reset();
+        shared::seedBenchmarkRng(config.randomSeed);
 
         // 创建世界
         World world;
-        world.getRNG().seed(config.randomSeed);
 
         // 生成实体
         std::cout << "Creating " << config.entityCount << " entities..." << std::endl;
@@ -168,11 +186,11 @@ int main(int argc, char* argv[]) {
     }
 
     // 写入CSV文件
-    std::cout << "\nWriting results to " << outputPath << "..." << std::endl;
-    runner.writeFrameTimeCSV(outputPath + "/oop_frame_time.csv", allFrameData, scales);
-    runner.writeMemoryCSV(outputPath + "/oop_memory.csv", allMemoryStats);
-    runner.writeCreationCSV(outputPath + "/oop_creation.csv", allCreationStats);
-    runner.writeHWCountersCSV(outputPath + "/oop_hw_counters.csv", allHWCounters);
+    std::cout << "\nWriting results to " << outputPath.string() << "..." << std::endl;
+    runner.writeFrameTimeCSV((outputPath / "oop_frame_time.csv").string(), allFrameData, scales);
+    runner.writeMemoryCSV((outputPath / "oop_memory.csv").string(), allMemoryStats);
+    runner.writeCreationCSV((outputPath / "oop_creation.csv").string(), allCreationStats);
+    runner.writeHWCountersCSV((outputPath / "oop_hw_counters.csv").string(), allHWCounters);
 
     std::cout << "\n====================================" << std::endl;
     std::cout << "  OOP Benchmark Complete!" << std::endl;

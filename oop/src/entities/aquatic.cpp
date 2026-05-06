@@ -1,4 +1,5 @@
 #include "entities/aquatic.hpp"
+#include "shared/random_utils.hpp"
 #include "shared/constants.hpp"
 #include <cmath>
 
@@ -6,8 +7,8 @@ namespace oop {
 
 // ==================== Fish ====================
 Fish::Fish(EntityID id)
-    : AquaticCreature(id, 3, shared::EntityType::Fish, 0.2f, false) {
-    swimDirection_ = static_cast<float>(rand()) / RAND_MAX * 2.0f * 3.14159265f;
+    : AquaticCreature(id, 3, shared::EntityType::Fish, shared::getEntityConfig(shared::EntityType::Fish).swimSpeed, false) {
+    swimDirection_ = shared::randomAngle();
 }
 
 void Fish::update(float dt) {
@@ -18,7 +19,7 @@ void Fish::update(float dt) {
 void Fish::updateSwimBehavior(float dt) {
     // 鱼随机游动
     if (stateTimer_ > 1.0f) {
-        swimDirection_ += static_cast<float>(rand()) / RAND_MAX * 0.5f - 0.25f;
+        swimDirection_ += shared::randomFloat(-0.25f, 0.25f);
         wanderDirX_ = std::cos(swimDirection_);
         wanderDirZ_ = std::sin(swimDirection_);
         stateTimer_ = 0.0f;
@@ -60,7 +61,7 @@ void Dolphin::update(float dt) {
 void Dolphin::updateJumpBehavior(float dt) {
     // 海豚跳跃行为
     if (y_ < shared::WorldConstants::WATER_LEVEL && jumpCooldown_ <= 0.0f) {
-        if (rand() % 1000 < 5) {  // 随机跳跃
+        if (shared::randomFloat(0.0f, 1.0f) < 0.005f) {  // 随机跳跃
             isJumping_ = true;
             jumpCooldown_ = JUMP_COOLDOWN;
         }
@@ -69,8 +70,8 @@ void Dolphin::updateJumpBehavior(float dt) {
 
 // ==================== Turtle ====================
 Turtle::Turtle(EntityID id)
-    : AquaticCreature(id, 30, shared::EntityType::Turtle, 0.08f, true) {
-    moveSpeed_ = 0.08f;  // 很慢
+    : AquaticCreature(id, 30, shared::EntityType::Turtle, shared::getEntityConfig(shared::EntityType::Turtle).swimSpeed, true) {
+    moveSpeed_ = shared::getEntityConfig(shared::EntityType::Turtle).moveSpeed;  // 很慢
 }
 
 void Turtle::update(float dt) {

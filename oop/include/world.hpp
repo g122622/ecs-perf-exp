@@ -6,7 +6,6 @@
 #include <vector>
 #include <memory>
 #include <functional>
-#include <random>
 
 namespace oop {
 
@@ -40,9 +39,6 @@ public:
     // 清空世界
     void clear();
 
-    // 随机数生成
-    std::mt19937& getRNG() { return rng_; }
-
     // 世界边界
     bool isInsideWorld(float x, float y, float z) const;
 
@@ -52,7 +48,6 @@ private:
 
     std::vector<std::unique_ptr<Entity>> entities_;
     EntityID nextId_ = 1;
-    std::mt19937 rng_;
 };
 
 } // namespace oop

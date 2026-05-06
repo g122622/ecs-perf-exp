@@ -111,11 +111,11 @@ cmake -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 
 # Run benchmarks
-.\build\bin\Release\oop_benchmark.exe
-.\build\bin\Release\ecs_entt_benchmark.exe
+.\build\bin\Release\oop_benchmark.exe .\results
+.\build\bin\Release\ecs_entt_benchmark.exe .\results
 
 # Generate visualization
-python scripts\visualize.py build\bin\Release\results build\bin\Release\results
+python scripts\visualize.py .\results .\results
 ```
 
 ## Architecture Details
@@ -176,7 +176,7 @@ inline std::vector<BenchmarkConfig> getAllBenchmarkConfigs() {
 
 ## Output Files
 
-Results are saved to `build/bin/Release/results/`:
+Results are saved to `results/`:
 
 | File | Description |
 |------|-------------|
@@ -187,6 +187,7 @@ Results are saved to `build/bin/Release/results/`:
 | `avg_frame_time.png` | Average frame time bar chart |
 | `performance_improvement.png` | Performance difference chart |
 | `memory_comparison.png` | Memory usage comparison |
+| `creation_time.png` | Entity creation timing chart |
 | `benchmark_summary.txt` | Text summary of results |
 
 ## Entity Types

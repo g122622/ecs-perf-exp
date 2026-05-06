@@ -10,7 +10,9 @@ Write-Host ""
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BuildDir = Join-Path $ScriptDir "build"
-$ResultsDir = Join-Path $BuildDir "bin\Release\results"
+$ResultsDir = Join-Path $ScriptDir "results"
+
+New-Item -ItemType Directory -Force -Path $ResultsDir | Out-Null
 
 # Step 1: Configure CMake
 Write-Host "[1/4] Configuring CMake..." -ForegroundColor Yellow
@@ -34,14 +36,13 @@ Write-Host ""
 Write-Host "[3/4] Running benchmarks..." -ForegroundColor Yellow
 
 # Clear old results
-$resultsDir = Join-Path $BuildDir "bin\Release\results"
-if (Test-Path $resultsDir) {
-    Remove-Item -Path "$resultsDir\*.csv" -Force
+foreach ($pattern in @("*.csv", "*.png", "*.txt")) {
+    Get-ChildItem -Path $ResultsDir -Filter $pattern -File -ErrorAction SilentlyContinue | Remove-Item -Force
 }
 
 Write-Host ""
 Write-Host "  --- Running OOP Benchmark ---" -ForegroundColor White
-& "$BuildDir\bin\Release\oop_benchmark.exe"
+& "$BuildDir\bin\Release\oop_benchmark.exe" "$ResultsDir"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "OOP benchmark failed!" -ForegroundColor Red
     exit 1
@@ -49,7 +50,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "  --- Running EnTT ECS Benchmark ---" -ForegroundColor White
-& "$BuildDir\bin\Release\ecs_entt_benchmark.exe"
+& "$BuildDir\bin\Release\ecs_entt_benchmark.exe" "$ResultsDir"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "EnTT ECS benchmark failed!" -ForegroundColor Red
     exit 1
@@ -58,7 +59,7 @@ Write-Host ""
 
 # Step 4: Visualization
 Write-Host "[4/4] Generating visualization..." -ForegroundColor Yellow
-& python "$ScriptDir\scripts\visualize.py" $ResultsDir $ResultsDir
+& python "$ScriptDir\scripts\visualize.py" "$ResultsDir" "$ResultsDir"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Visualization failed!" -ForegroundColor Red
     exit 1

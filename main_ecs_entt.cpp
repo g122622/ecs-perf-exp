@@ -6,6 +6,8 @@
 #include "shared/entity_types.hpp"
 #include "shared/constants.hpp"
 #include "shared/benchmark_config.hpp"
+#include "shared/random_utils.hpp"
+#include <filesystem>
 #include <iostream>
 #include <iomanip>
 #include <random>
@@ -13,6 +15,20 @@
 using namespace benchmark;
 using namespace ecs_entt;
 using namespace shared;
+
+namespace {
+
+std::filesystem::path getProjectResultsDir(const char* executablePath) {
+    std::filesystem::path projectDir = std::filesystem::absolute(executablePath).parent_path();
+
+    for (int i = 0; i < 3; ++i) {
+        projectDir = projectDir.parent_path();
+    }
+
+    return projectDir / "results";
+}
+
+} // namespace
 
 void generateRandomPosition(std::mt19937& rng, float& x, float& y, float& z) {
     std::uniform_real_distribution<float> distX(0.0f, shared::WorldConstants::WORLD_SIZE_X);
@@ -49,12 +65,14 @@ int main(int argc, char* argv[]) {
     std::cout << "====================================" << std::endl;
     std::cout << std::endl;
 
-    std::string outputPath = "./results";
+    std::filesystem::path outputPath = getProjectResultsDir(argc > 0 ? argv[0] : "");
     if (argc > 1) {
-        outputPath = argv[1];
+        outputPath = std::filesystem::path(argv[1]);
     }
 
-    BenchmarkRunner runner(outputPath);
+    std::filesystem::create_directories(outputPath);
+
+    BenchmarkRunner runner(outputPath.string());
     auto configs = getAllBenchmarkConfigs();
 
     std::vector<std::vector<FrameData>> allFrameData;
@@ -69,9 +87,9 @@ int main(int argc, char* argv[]) {
 
         std::mt19937 rng(config.randomSeed);
         MemoryTracker::instance().reset();
+        shared::seedBenchmarkRng(config.randomSeed);
 
         World world(config.entityCount);
-        world.setSeed(config.randomSeed);
 
         std::cout << "Creating " << config.entityCount << " entities..." << std::endl;
 
@@ -151,11 +169,11 @@ int main(int argc, char* argv[]) {
         std::cout << "Benchmark completed for " << config.entityCount << " entities" << std::endl;
     }
 
-    std::cout << "\nWriting results to " << outputPath << "..." << std::endl;
-    runner.writeFrameTimeCSV(outputPath + "/ecs_entt_frame_time.csv", allFrameData, scales);
-    runner.writeMemoryCSV(outputPath + "/ecs_entt_memory.csv", allMemoryStats);
-    runner.writeCreationCSV(outputPath + "/ecs_entt_creation.csv", allCreationStats);
-    runner.writeHWCountersCSV(outputPath + "/ecs_entt_hw_counters.csv", allHWCounters);
+    std::cout << "\nWriting results to " << outputPath.string() << "..." << std::endl;
+    runner.writeFrameTimeCSV((outputPath / "ecs_entt_frame_time.csv").string(), allFrameData, scales);
+    runner.writeMemoryCSV((outputPath / "ecs_entt_memory.csv").string(), allMemoryStats);
+    runner.writeCreationCSV((outputPath / "ecs_entt_creation.csv").string(), allCreationStats);
+    runner.writeHWCountersCSV((outputPath / "ecs_entt_hw_counters.csv").string(), allHWCounters);
 
     std::cout << "\n====================================" << std::endl;
     std::cout << "  EnTT ECS Benchmark Complete!" << std::endl;

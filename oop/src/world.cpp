@@ -11,8 +11,7 @@
 namespace oop {
 
 World::World()
-    : nextId_(1)
-    , rng_(shared::RandomConstants::DEFAULT_SEED) {
+    : nextId_(1) {
 }
 
 EntityID World::spawnEntity(shared::EntityType type, float x, float y, float z) {

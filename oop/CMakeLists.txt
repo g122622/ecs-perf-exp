@@ -7,8 +7,6 @@ add_library(oop_lib STATIC
     src/flying_creature.cpp
     src/aquatic_creature.cpp
     src/world.cpp
-    src/ai_state_machine.cpp
-    src/entity_factory.cpp
     src/entities/monsters.cpp
     src/entities/animals.cpp
     src/entities/flying.cpp

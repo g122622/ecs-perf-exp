@@ -13,20 +13,6 @@ struct Transform {
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
-    float rotX = 0.0f;
-    float rotY = 0.0f;
-    float rotZ = 0.0f;
-};
-
-// Physics component - Velocity + Acceleration
-struct Physics {
-    float vx = 0.0f;
-    float vy = 0.0f;
-    float vz = 0.0f;
-    float ax = 0.0f;
-    float ay = 0.0f;
-    float az = 0.0f;
-    float drag = 0.98f;
 };
 
 // Health component
@@ -43,7 +29,7 @@ struct AI {
     Entity target = NullEntity;
     float perceptionRange = 16.0f;
     float stateTimer = 0.0f;
-    float stateDuration = 0.0f;  // Duration for current state
+    float stateDuration = 0.0f;  // Auxiliary per-entity value used by some species
     float wanderDirX = 0.0f;
     float wanderDirZ = 0.0f;
 };
@@ -57,8 +43,6 @@ struct Attributes {
     float attackCooldownTimer = 0.0f;
     float flightHeight = 0.0f;
     float swimSpeed = 0.0f;
-    uint16_t entityType = 0;
-    uint8_t behaviorFlags = 0;
 };
 
 // Type tag component

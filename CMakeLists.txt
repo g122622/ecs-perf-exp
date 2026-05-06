@@ -35,5 +35,3 @@ target_link_libraries(oop_benchmark PRIVATE benchmark_lib oop_lib shared)
 add_executable(ecs_entt_benchmark main_ecs_entt.cpp)
 target_link_libraries(ecs_entt_benchmark PRIVATE benchmark_lib ecs_entt_lib shared)
 
-# Copy results directory
-file(COPY ${CMAKE_SOURCE_DIR}/results DESTINATION ${CMAKE_BINARY_DIR}/bin)
