@@ -33,19 +33,17 @@ Write-Host ""
 # Step 3: Run benchmarks
 Write-Host "[3/4] Running benchmarks..." -ForegroundColor Yellow
 
+# Clear old results
+$resultsDir = Join-Path $BuildDir "bin\Release\results"
+if (Test-Path $resultsDir) {
+    Remove-Item -Path "$resultsDir\*.csv" -Force
+}
+
 Write-Host ""
 Write-Host "  --- Running OOP Benchmark ---" -ForegroundColor White
 & "$BuildDir\bin\Release\oop_benchmark.exe"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "OOP benchmark failed!" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host ""
-Write-Host "  --- Running ECS Benchmark ---" -ForegroundColor White
-& "$BuildDir\bin\Release\ecs_benchmark.exe"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ECS benchmark failed!" -ForegroundColor Red
     exit 1
 }
 

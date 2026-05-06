@@ -28,19 +28,14 @@ echo.
 
 echo [3/4] Running benchmarks...
 
+REM Clear old results
+del /Q "%RESULTS_DIR%\*.csv" 2>nul
+
 echo.
 echo   --- Running OOP Benchmark ---
 "%BUILD_DIR%\bin\Release\oop_benchmark.exe"
 if %ERRORLEVEL% neq 0 (
     echo OOP benchmark failed!
-    exit /b 1
-)
-
-echo.
-echo   --- Running ECS Benchmark ---
-"%BUILD_DIR%\bin\Release\ecs_benchmark.exe"
-if %ERRORLEVEL% neq 0 (
-    echo ECS benchmark failed!
     exit /b 1
 )
 
