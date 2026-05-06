@@ -21,7 +21,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # Add subdirectories
 add_subdirectory(benchmark)
 add_subdirectory(oop)
-add_subdirectory(ecs)
 add_subdirectory(ecs_entt)
 
 # Shared headers (header-only)
@@ -31,10 +30,6 @@ target_include_directories(shared INTERFACE ${CMAKE_SOURCE_DIR}/shared)
 # OOP Benchmark executable
 add_executable(oop_benchmark main_oop.cpp)
 target_link_libraries(oop_benchmark PRIVATE benchmark_lib oop_lib shared)
-
-# ECS Benchmark executable
-add_executable(ecs_benchmark main_ecs.cpp)
-target_link_libraries(ecs_benchmark PRIVATE benchmark_lib ecs_lib shared)
 
 # EnTT ECS Benchmark executable
 add_executable(ecs_entt_benchmark main_ecs_entt.cpp)
