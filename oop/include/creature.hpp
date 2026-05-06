@@ -27,7 +27,11 @@ public:
     EntityID getTargetId() const { return targetId_; }
     void setTargetId(EntityID id) { targetId_ = id; }
     bool hasTarget() const { return targetId_ != INVALID_ENTITY_ID; }
-    void clearTarget() { targetId_ = INVALID_ENTITY_ID; }
+    void clearTarget() { targetId_ = INVALID_ENTITY_ID; targetDistanceSq_ = 0.0f; }
+
+    // 目标距离
+    float getTargetDistanceSq() const { return targetDistanceSq_; }
+    void setTargetDistanceSq(float distSq) { targetDistanceSq_ = distSq; }
 
     // 移动速度
     float getMoveSpeed() const { return moveSpeed_; }
@@ -53,6 +57,7 @@ protected:
     float perceptionRange_ = 16.0f;
     float moveSpeed_ = 0.2f;
     EntityID targetId_ = INVALID_ENTITY_ID;
+    float targetDistanceSq_ = 0.0f;  // 目标距离的平方
 
     // AI状态计时器
     float stateTimer_ = 0.0f;

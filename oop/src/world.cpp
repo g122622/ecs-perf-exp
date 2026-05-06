@@ -217,6 +217,11 @@ void World::updateInteractions(float dt) {
 
             if (bestTarget != nullptr) {
                 monster->setTargetId(bestTarget->getId());
+                // 计算目标距离
+                float dx = bestTarget->getX() - px;
+                float dy = bestTarget->getY() - py;
+                float dz = bestTarget->getZ() - pz;
+                monster->setTargetDistanceSq(dx * dx + dy * dy + dz * dz);
                 monster->setAIState(shared::AIState::Chase);
                 monster->setWanderDirection(bestTarget->getX() - px, bestTarget->getZ() - pz);
             }
@@ -234,6 +239,9 @@ void World::updateInteractions(float dt) {
                     float dy = targetEntity->getY() - monster->getY();
                     float dz = targetEntity->getZ() - monster->getZ();
                     float distSq = dx * dx + dy * dy + dz * dz;
+
+                    // 更新目标距离
+                    monster->setTargetDistanceSq(distSq);
 
                     float attackRangeSq = monster->getAttackRange() * monster->getAttackRange();
 

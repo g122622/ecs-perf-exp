@@ -16,15 +16,6 @@ Both implementations feature identical:
 - Combat system with target acquisition
 - Health regeneration
 
-## Results Summary
-
-| Entity Count | OOP (μs) | EnTT ECS (μs) | Memory (OOP) | Memory (EnTT) |
-|-------------:|---------:|--------------:|-------------:|---------------:|
-| 1,000 | 43.86 | 136.06 | 0.11 MB | 0.27 MB |
-| 5,000 | 237.09 | 323.28 | 0.54 MB | 1.02 MB |
-| 20,000 | 1,015.20 | 1,341.96 | 2.22 MB | 3.90 MB |
-| 100,000 | 5,692.39 | 6,901.08 | 11.11 MB | 19.29 MB |
-
 ### Key Findings
 
 - **OOP is faster at all tested scales** (up to 3.1x at 1,000 entities)

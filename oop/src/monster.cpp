@@ -66,48 +66,6 @@ void Monster::updateAI(float dt) {
     }
 
     setAIState(nextState);
-
-    switch (aiState_) {
-        case shared::AIState::Idle: {
-            // 随机切换到游荡
-            if (stateTimer_ > shared::WorldConstants::IDLE_DURATION_MAX) {
-                setAIState(shared::AIState::Wander);
-            }
-            break;
-        }
-        case shared::AIState::Wander: {
-            // 检测目标
-            if (hasTarget()) {
-                setAIState(shared::AIState::Chase);
-            } else if (stateTimer_ > shared::WorldConstants::WANDER_DURATION_MAX) {
-                setAIState(shared::AIState::Idle);
-            }
-            break;
-        }
-        case shared::AIState::Chase: {
-            // 追踪目标
-            if (!hasTarget()) {
-                setAIState(shared::AIState::Wander);
-            } else if (stateTimer_ > shared::WorldConstants::CHASE_DURATION_MAX) {
-                // 追踪超时，放弃
-                clearTarget();
-                setAIState(shared::AIState::Wander);
-            }
-            break;
-        }
-        case shared::AIState::Flee: {
-            if (stateTimer_ > shared::WorldConstants::FLEE_DURATION_MAX) {
-                setAIState(shared::AIState::Wander);
-            }
-            break;
-        }
-        case shared::AIState::Attack: {
-            // 攻击状态处理在子类中
-            break;
-        }
-        default:
-            break;
-    }
 }
 
 void Monster::updateAttackCooldown(float dt) {

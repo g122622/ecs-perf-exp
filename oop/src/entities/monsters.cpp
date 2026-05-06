@@ -71,7 +71,7 @@ void Creeper::updateExplosion(float dt) {
         wanderDirZ_,
         dt,
         hasTarget(),
-        0.0f,
+        getTargetDistanceSq(),
         attackRange_ * attackRange_,
         context);
 
@@ -106,7 +106,7 @@ void Enderman::updateTeleport(float dt) {
         wanderDirZ_,
         dt,
         hasTarget(),
-        0.0f,
+        getTargetDistanceSq(),
         attackRange_ * attackRange_,
         context);
 }
@@ -139,7 +139,7 @@ void Blaze::updateFireballAttack(float dt) {
         wanderDirZ_,
         dt,
         hasTarget(),
-        0.0f,
+        getTargetDistanceSq(),
         attackRange_ * attackRange_,
         context);
 }
@@ -171,7 +171,7 @@ void Ghast::updateFireballAttack(float dt) {
         wanderDirZ_,
         dt,
         hasTarget(),
-        0.0f,
+        getTargetDistanceSq(),
         attackRange_ * attackRange_,
         context);
 }
@@ -203,7 +203,7 @@ void Phantom::updateDiveAttack(float dt) {
         wanderDirZ_,
         dt,
         hasTarget(),
-        0.0f,
+        getTargetDistanceSq(),
         attackRange_ * attackRange_,
         context);
 }

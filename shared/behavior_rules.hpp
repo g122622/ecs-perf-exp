@@ -530,6 +530,14 @@ inline SpecialBehaviorResult updateSpecialBehavior(EntityType type,
         }
 
         case EntityType::Dolphin: {
+            // 深度调整
+            float waterBias = profile.waterBias > 0.0f ? profile.waterBias : 1.0f;
+            float targetDepth = WorldConstants::WATER_LEVEL - (1.0f + waterBias * 3.0f);
+            float depthBlend = dt * 0.35f;
+            depthBlend = depthBlend < 1.0f ? depthBlend : 1.0f;
+            y += (targetDepth - y) * depthBlend;
+
+            // 跳跃行为
             bool jumping = hasRuntimeFlag(state.flags, RuntimeFlag::Jumping);
             if (!jumping && state.specialCooldown <= 0.0f && y < WorldConstants::WATER_LEVEL + 0.5f) {
                 float noise = stableAngle(type, state, context.elapsedTime);
@@ -570,11 +578,29 @@ inline SpecialBehaviorResult updateSpecialBehavior(EntityType type,
             break;
         }
 
-        case EntityType::Squid:
+        case EntityType::Squid: {
+            // 鱿鱼保持在水中
+            float waterBias = profile.waterBias > 0.0f ? profile.waterBias : 1.0f;
+            float targetDepth = WorldConstants::WATER_LEVEL - (2.0f + waterBias * 4.0f);
+            float depthBlend = dt * 0.30f;
+            depthBlend = depthBlend < 1.0f ? depthBlend : 1.0f;
+            y += (targetDepth - y) * depthBlend;
+            break;
+        }
+
+        case EntityType::Turtle: {
+            // 海龟保持在水中较浅位置
+            float waterBias = profile.waterBias > 0.0f ? profile.waterBias : 1.0f;
+            float targetDepth = WorldConstants::WATER_LEVEL - (1.0f + waterBias * 2.0f);
+            float depthBlend = dt * 0.25f;
+            depthBlend = depthBlend < 1.0f ? depthBlend : 1.0f;
+            y += (targetDepth - y) * depthBlend;
+            break;
+        }
+
         case EntityType::Chicken:
         case EntityType::Blaze:
         case EntityType::Ghast:
-        case EntityType::Turtle:
         case EntityType::Wolf:
         case EntityType::Cat:
         case EntityType::Fox:

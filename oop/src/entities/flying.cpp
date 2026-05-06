@@ -17,7 +17,7 @@ void Bat::update(float dt) {
 }
 
 void Bat::updateRandomFlight(float dt) {
-    // 蝙蝠随机飞行
+    // 蝙蝠随机飞行 - 不需要目标距离
     (void)shared::updateSpecialBehavior(
         entityType_,
         shared::getEntityConfig(entityType_),
@@ -31,7 +31,7 @@ void Bat::updateRandomFlight(float dt) {
         wanderDirZ_,
         dt,
         hasTarget(),
-        0.0f,
+        getTargetDistanceSq(),
         0.0f,
         shared::simulationContext());
 }
@@ -45,9 +45,10 @@ void Bee::update(float dt) {
     FlyingCreature::update(dt);
     updatePollination(dt);
 
+    const auto& config = shared::getEntityConfig(entityType_);
     (void)shared::updateSpecialBehavior(
         entityType_,
-        shared::getEntityConfig(entityType_),
+        config,
         shared::getBehaviorProfile(entityType_),
         behaviorState_,
         aiState_,
@@ -58,8 +59,8 @@ void Bee::update(float dt) {
         wanderDirZ_,
         dt,
         hasTarget(),
-        0.0f,
-        0.0f,
+        getTargetDistanceSq(),
+        config.attackRange * config.attackRange,
         shared::simulationContext());
 }
 
