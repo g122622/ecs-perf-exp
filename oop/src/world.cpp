@@ -5,6 +5,7 @@
 #include "entities/aquatic.hpp"
 #include "living_entity.hpp"
 #include "monster.hpp"
+#include "shared/spatial_grid.hpp"
 #include <cmath>
 #include <algorithm>
 
@@ -153,28 +154,35 @@ void World::update(float dt) {
 
 void World::updateInteractions(float dt) {
     (void)dt;
-    // Collect hostile monsters and passive animals
-    std::vector<Monster*> monsters;
-    std::vector<Creature*> animals;
 
-    for (auto& entity : entities_) {
+    // 构建空间网格
+    shared::SpatialGrid grid;
+
+    for (const auto& entity : entities_) {
         if (!entity || !entity->isActive()) continue;
 
-        if (entity->isMonster()) {
-            auto* monster = dynamic_cast<Monster*>(entity.get());
-            if (monster) {
-                monsters.push_back(monster);
-            }
-        } else if (entity->isAnimal()) {
-            auto* animal = dynamic_cast<Creature*>(entity.get());
-            if (animal) {
-                animals.push_back(animal);
-            }
-        }
+        shared::SpatialGrid::EntityEntry entry{};
+        entry.id = static_cast<uint32_t>(entity->getId());
+        entry.x = entity->getX();
+        entry.y = entity->getY();
+        entry.z = entity->getZ();
+        entry.isMonster = entity->isMonster();
+        entry.isAnimal = entity->isAnimal();
+        entry.isFlying = entity->isFlying();
+        entry.isAquatic = entity->isAquatic();
+        entry.isDead = entity->isLiving() && dynamic_cast<LivingEntity*>(entity.get())->isDead();
+        entry.userData = entity.get();
+
+        grid.insert(entry);
     }
 
     // Process monster interactions
-    for (auto* monster : monsters) {
+    for (auto& entity : entities_) {
+        if (!entity || !entity->isActive() || !entity->isMonster()) continue;
+
+        auto* monster = dynamic_cast<Monster*>(entity.get());
+        if (!monster) continue;
+
         const auto& profile = shared::getBehaviorProfile(monster->getEntityType());
         float px = monster->getX();
         float py = monster->getY();
@@ -188,26 +196,25 @@ void World::updateInteractions(float dt) {
             Creature* bestTarget = nullptr;
             float bestScore = -1.0f;
 
-            for (auto* animal : animals) {
-                if (!animal->isActive()) continue;
+            // 使用空间网格查询
+            auto nearby = grid.query(px, pz, range);
+            for (const auto& candidate : nearby) {
+                if (!candidate.isAnimal || candidate.isDead) continue;
 
-                float dx = animal->getX() - px;
-                float dy = animal->getY() - py;
-                float dz = animal->getZ() - pz;
+                auto* animal = static_cast<Creature*>(candidate.userData);
+                if (!animal || !animal->isActive()) continue;
+
+                float dx = candidate.x - px;
+                float dy = candidate.y - py;
+                float dz = candidate.z - pz;
                 float distSq = dx * dx + dy * dy + dz * dz;
                 if (distSq > rangeSq) continue;
 
                 auto* livingTarget = dynamic_cast<LivingEntity*>(animal);
                 float targetHealthPercent = livingTarget != nullptr ? livingTarget->getHealthPercent() : 1.0f;
                 float score = shared::scoreTargetCandidate(
-                    profile,
-                    shared::simulationContext(),
-                    distSq,
-                    targetHealthPercent,
-                    true,
-                    false,
-                    shared::isFlying(animal->getEntityType()),
-                    shared::isAquatic(animal->getEntityType()));
+                    profile, shared::simulationContext(), distSq, targetHealthPercent,
+                    true, false, candidate.isFlying, candidate.isAquatic);
 
                 if (score > bestScore) {
                     bestScore = score;
@@ -273,8 +280,11 @@ void World::updateInteractions(float dt) {
     }
 
     // 被动生物在低血量或被敌对目标逼近时更倾向逃跑。
-    for (auto* animal : animals) {
-        if (!animal->isActive()) continue;
+    for (auto& entity : entities_) {
+        if (!entity || !entity->isActive() || !entity->isAnimal()) continue;
+
+        auto* animal = dynamic_cast<Creature*>(entity.get());
+        if (!animal) continue;
 
         const auto& profile = shared::getBehaviorProfile(animal->getEntityType());
         float ax = animal->getX();
@@ -286,26 +296,31 @@ void World::updateInteractions(float dt) {
         Monster* nearestThreat = nullptr;
         float nearestThreatDistSq = perceptionRangeSq;
 
-        for (auto* monster : monsters) {
-            if (!monster->isActive()) continue;
+        // 使用空间网格查询
+        auto nearby = grid.query(ax, az, perceptionRange);
+        for (const auto& candidate : nearby) {
+            if (!candidate.isMonster || candidate.isDead) continue;
 
-            float dx = monster->getX() - ax;
-            float dy = monster->getY() - ay;
-            float dz = monster->getZ() - az;
+            float dx = candidate.x - ax;
+            float dy = candidate.y - ay;
+            float dz = candidate.z - az;
             float distSq = dx * dx + dy * dy + dz * dz;
 
             if (distSq < nearestThreatDistSq) {
                 nearestThreatDistSq = distSq;
-                nearestThreat = monster;
+                nearestThreat = static_cast<Monster*>(candidate.userData);
             }
         }
 
-        if (nearestThreat != nullptr) {
-            animal->setAIState(shared::AIState::Flee);
-            animal->setWanderDirection(ax - nearestThreat->getX(), az - nearestThreat->getZ());
+        auto* livingAnimal = dynamic_cast<LivingEntity*>(animal);
+        if (nearestThreat != nullptr || (livingAnimal && livingAnimal->getHealthPercent() <= profile.fleeHealthThreshold)) {
+            if (nearestThreat != nullptr) {
+                animal->setAIState(shared::AIState::Flee);
+                animal->setWanderDirection(ax - nearestThreat->getX(), az - nearestThreat->getZ());
+            } else {
+                animal->setAIState(shared::AIState::Flee);
+            }
             animal->clearTarget();
-        } else if (dynamic_cast<LivingEntity*>(animal)->getHealthPercent() <= profile.fleeHealthThreshold) {
-            animal->setAIState(shared::AIState::Flee);
         }
     }
 }

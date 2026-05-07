@@ -44,7 +44,7 @@ def plot_frame_time_comparison(results, output_dir):
     if 'oop_frame' in results:
         prefixes.append(('OOP', 'oop', '#e74c3c'))
     if 'ecs_entt_frame' in results:
-        prefixes.append(('ECS (EnTT)', 'ecs_entt', '#2ecc71'))
+        prefixes.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
     if len(prefixes) == 0:
         print("No frame time data available")
@@ -64,7 +64,7 @@ def plot_frame_time_comparison(results, output_dir):
             data = results[f'{prefix}_frame']
             scale_data = data[data['scale'] == scale]
             ax.plot(scale_data['frame'], scale_data['frame_time_ms'] * 1000,
-                    label=label, color=color, alpha=0.7, linewidth=0.5)
+                    label=label, color=color, alpha=0.7, linewidth=1.5)
 
         ax.set_xlabel('Frame')
         ax.set_ylabel('Frame Time (μs)')
@@ -84,7 +84,7 @@ def plot_avg_frame_time(results, output_dir):
     if 'oop_frame' in results:
         prefixes.append(('OOP', 'oop', '#e74c3c'))
     if 'ecs_entt_frame' in results:
-        prefixes.append(('ECS (EnTT)', 'ecs_entt', '#2ecc71'))
+        prefixes.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
     if len(prefixes) == 0:
         return
@@ -148,7 +148,7 @@ def plot_performance_improvement(results, output_dir):
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    color = '#2ecc71'
+    color = '#38aff9'
     x = np.arange(len(improvements))
     scales, imps = zip(*improvements)
     bars = ax.bar(x, imps, 0.5, label=label, color=color)
@@ -184,7 +184,7 @@ def plot_memory_comparison(results, output_dir):
     if 'oop_memory' in results:
         prefixes.append(('OOP', 'oop', '#e74c3c'))
     if 'ecs_entt_memory' in results:
-        prefixes.append(('ECS (EnTT)', 'ecs_entt', '#2ecc71'))
+        prefixes.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
     if len(prefixes) == 0:
         return
@@ -235,7 +235,7 @@ def plot_creation_time(results, output_dir):
     if 'oop_creation' in results:
         prefixes.append(('OOP', 'oop', '#e74c3c'))
     if 'ecs_entt_creation' in results:
-        prefixes.append(('ECS (EnTT)', 'ecs_entt', '#2ecc71'))
+        prefixes.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
     if len(prefixes) == 0:
         return

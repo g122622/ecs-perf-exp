@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include "shared/spatial_grid.hpp"
 
 namespace ecs_entt {
 
@@ -323,11 +324,35 @@ void DecaySystem::update(entt::registry& registry, float dt) {
 // InteractionSystem
 void InteractionSystem::update(entt::registry& registry, float dt) {
     (void)dt;
-    auto hostiles = registry.view<Transform, AI, Attributes, Health, TypeTag, BehaviorState>();
-    auto passives = registry.view<Transform, AI, TypeTag, Health>();
 
     const auto& context = shared::simulationContext();
 
+    // 构建空间网格
+    shared::SpatialGrid grid;
+
+    auto allEntities = registry.view<Transform, Health, TypeTag>();
+    for (auto entity : allEntities) {
+        auto& transform = allEntities.get<Transform>(entity);
+        auto& tag = allEntities.get<TypeTag>(entity);
+        auto& health = allEntities.get<Health>(entity);
+
+        shared::SpatialGrid::EntityEntry entry{};
+        entry.id = static_cast<uint32_t>(entity);
+        entry.x = transform.x;
+        entry.y = transform.y;
+        entry.z = transform.z;
+        entry.isMonster = tag.isMonster;
+        entry.isAnimal = tag.isAnimal;
+        entry.isFlying = tag.isFlying;
+        entry.isAquatic = tag.isAquatic;
+        entry.isDead = health.isDead;
+        entry.userData = nullptr;
+
+        grid.insert(entry);
+    }
+
+    // 处理怪物寻找目标
+    auto hostiles = registry.view<Transform, AI, Attributes, Health, TypeTag, BehaviorState>();
     for (auto entity : hostiles) {
         auto& transform = hostiles.get<Transform>(entity);
         auto& ai = hostiles.get<AI>(entity);
@@ -352,42 +377,40 @@ void InteractionSystem::update(entt::registry& registry, float dt) {
             Entity bestTarget = NullEntity;
             float bestScore = -1.0f;
 
-            for (auto target : passives) {
-                if (entity == target) continue;
+            // 使用空间网格查询
+            auto nearby = grid.query(transform.x, transform.z, range);
+            for (const auto& candidate : nearby) {
+                if (candidate.id == static_cast<uint32_t>(entity)) continue;
+                if (!candidate.isAnimal || candidate.isDead) continue;
 
-                auto& targetTransform = passives.get<Transform>(target);
-                auto& tag = passives.get<TypeTag>(target);
-                auto& targetHealth = passives.get<Health>(target);
+                float dx = candidate.x - transform.x;
+                float dy = candidate.y - transform.y;
+                float dz = candidate.z - transform.z;
+                float distSq = dx * dx + dy * dy + dz * dz;
+                if (distSq > rangeSq) continue;
 
-                if (tag.isAnimal && !targetHealth.isDead) {
-                    float dx = targetTransform.x - transform.x;
-                    float dy = targetTransform.y - transform.y;
-                    float dz = targetTransform.z - transform.z;
-                    float distSq = dx * dx + dy * dy + dz * dz;
-                    if (distSq > rangeSq) continue;
+                // 获取目标生命值
+                entt::entity targetEntity = static_cast<entt::entity>(candidate.id);
+                float targetHealthPercent = 1.0f;
+                if (auto* targetHealth = registry.try_get<Health>(targetEntity)) {
+                    targetHealthPercent = targetHealth->maximum > 0 ?
+                        static_cast<float>(targetHealth->current) / static_cast<float>(targetHealth->maximum) : 1.0f;
+                }
 
-                    float targetHealthPercent = targetHealth.maximum > 0 ? static_cast<float>(targetHealth.current) / static_cast<float>(targetHealth.maximum) : 1.0f;
-                    float score = shared::scoreTargetCandidate(
-                        shared::getBehaviorProfile(entityType),
-                        context,
-                        distSq,
-                        targetHealthPercent,
-                        true,
-                        false,
-                        tag.isFlying,
-                        tag.isAquatic);
+                float score = shared::scoreTargetCandidate(
+                    profile, context, distSq, targetHealthPercent,
+                    true, false, candidate.isFlying, candidate.isAquatic);
 
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestTarget = target;
-                    }
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestTarget = targetEntity;
                 }
             }
 
             if (bestTarget != NullEntity) {
                 ai.target = bestTarget;
                 ai.state = static_cast<uint8_t>(shared::AIState::Chase);
-                auto& targetTransform = passives.get<Transform>(bestTarget);
+                auto& targetTransform = registry.get<Transform>(bestTarget);
                 shared::setHeadingFromVector(targetTransform.x - transform.x, targetTransform.z - transform.z, ai.wanderDirX, ai.wanderDirZ);
             }
         }
@@ -407,11 +430,7 @@ void InteractionSystem::update(entt::registry& registry, float dt) {
                     if (registry.all_of<Health>(ai.target)) {
                         auto& targetHealth = registry.get<Health>(ai.target);
                         float damageScale = shared::computeAttackDamageScale(
-                            shared::getBehaviorProfile(entityType),
-                            behavior,
-                            context,
-                            distSq,
-                            rangeSq);
+                            shared::getBehaviorProfile(entityType), behavior, context, distSq, rangeSq);
                         int damage = std::max(1, static_cast<int>(std::round(attr.attackDamage * damageScale)));
                         targetHealth.current -= damage;
                         if (targetHealth.current <= 0) {
@@ -433,9 +452,10 @@ void InteractionSystem::update(entt::registry& registry, float dt) {
                 ai.state = static_cast<uint8_t>(shared::AIState::Wander);
             }
         }
-
     }
 
+    // 处理动物检测威胁
+    auto passives = registry.view<Transform, AI, TypeTag, Health>();
     for (auto entity : passives) {
         auto& transform = passives.get<Transform>(entity);
         auto& ai = passives.get<AI>(entity);
@@ -453,32 +473,28 @@ void InteractionSystem::update(entt::registry& registry, float dt) {
         Entity nearestThreat = NullEntity;
         float nearestThreatDistSq = perceptionRangeSq;
 
-        for (auto hostile : hostiles) {
-            auto& hostileTransform = hostiles.get<Transform>(hostile);
-            auto& hostileTag = hostiles.get<TypeTag>(hostile);
-            auto& hostileHealth = hostiles.get<Health>(hostile);
+        // 使用空间网格查询
+        auto nearby = grid.query(transform.x, transform.z, perceptionRange);
+        for (const auto& candidate : nearby) {
+            if (!candidate.isMonster || candidate.isDead) continue;
 
-            if (!hostileTag.isMonster || hostileHealth.isDead) {
-                continue;
-            }
-
-            float dx = hostileTransform.x - transform.x;
-            float dy = hostileTransform.y - transform.y;
-            float dz = hostileTransform.z - transform.z;
+            float dx = candidate.x - transform.x;
+            float dy = candidate.y - transform.y;
+            float dz = candidate.z - transform.z;
             float distSq = dx * dx + dy * dy + dz * dz;
 
             if (distSq < nearestThreatDistSq) {
                 nearestThreatDistSq = distSq;
-                nearestThreat = hostile;
+                nearestThreat = static_cast<entt::entity>(candidate.id);
             }
         }
 
-        if (nearestThreat != NullEntity || (health.maximum > 0 && static_cast<float>(health.current) / static_cast<float>(health.maximum) <= profile.fleeHealthThreshold)) {
+        float healthPercent = health.maximum > 0 ? static_cast<float>(health.current) / static_cast<float>(health.maximum) : 1.0f;
+        if (nearestThreat != NullEntity || healthPercent <= profile.fleeHealthThreshold) {
             if (nearestThreat != NullEntity) {
-                auto& threatTransform = hostiles.get<Transform>(nearestThreat);
+                auto& threatTransform = registry.get<Transform>(nearestThreat);
                 shared::setHeadingFromVector(transform.x - threatTransform.x, transform.z - threatTransform.z, ai.wanderDirX, ai.wanderDirZ);
             }
-
             ai.state = static_cast<uint8_t>(shared::AIState::Flee);
         }
     }
