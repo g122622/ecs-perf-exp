@@ -19,7 +19,7 @@ def load_csv_results(results_dir):
     results = {}
 
     # Frame time data
-    for prefix in ['oop', 'ecs', 'ecs_entt']:
+    for prefix in ['oop', 'ecs', 'ecs_entt', 'hybrid']:
         frame_path = os.path.join(results_dir, f'{prefix}_frame_time.csv')
         if os.path.exists(frame_path):
             results[f'{prefix}_frame'] = pd.read_csv(frame_path)
@@ -39,10 +39,12 @@ def load_csv_results(results_dir):
     return results
 
 def plot_frame_time_comparison(results, output_dir):
-    """Plot frame time comparison between OOP and EnTT."""
+    """Plot frame time comparison between OOP, Hybrid, and EnTT ECS."""
     prefixes = []
     if 'oop_frame' in results:
         prefixes.append(('OOP', 'oop', '#e74c3c'))
+    if 'hybrid_frame' in results:
+        prefixes.append(('Hybrid', 'hybrid', '#2ecc71'))
     if 'ecs_entt_frame' in results:
         prefixes.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
@@ -53,7 +55,7 @@ def plot_frame_time_comparison(results, output_dir):
     scales = results[prefixes[0][1] + '_frame']['scale'].unique()
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle('Frame Time Comparison: OOP vs ECS (EnTT)', fontsize=16)
+    fig.suptitle('Frame Time Comparison: OOP vs Hybrid vs ECS (EnTT)', fontsize=16)
 
     for idx, scale in enumerate(sorted(scales)):
         if idx >= 4:
@@ -83,6 +85,8 @@ def plot_avg_frame_time(results, output_dir):
     prefixes = []
     if 'oop_frame' in results:
         prefixes.append(('OOP', 'oop', '#e74c3c'))
+    if 'hybrid_frame' in results:
+        prefixes.append(('Hybrid', 'hybrid', '#2ecc71'))
     if 'ecs_entt_frame' in results:
         prefixes.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
@@ -126,46 +130,56 @@ def plot_avg_frame_time(results, output_dir):
 
 def plot_performance_improvement(results, output_dir):
     """Plot performance improvement percentage."""
-    if 'oop_frame' not in results or 'ecs_entt_frame' not in results:
+    if 'oop_frame' not in results:
         return
 
     oop_data = results['oop_frame']
     oop_avg = oop_data.groupby('scale')['frame_time_ms'].mean()
 
-    improvements = []
-    label = 'ECS (EnTT)'
-    data = results['ecs_entt_frame']
-    avg_data = data.groupby('scale')['frame_time_ms'].mean()
-    for s in sorted(oop_avg.index):
-        if s in avg_data:
-            oop_time = oop_avg[s]
-            other_time = avg_data[s]
-            imp = ((oop_time - other_time) / oop_time) * 100
-            improvements.append((s, imp))
+    # Collect all comparisons
+    comparisons = []
+    if 'hybrid_frame' in results:
+        comparisons.append(('Hybrid', 'hybrid', '#2ecc71'))
+    if 'ecs_entt_frame' in results:
+        comparisons.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
-    if not improvements:
+    if not comparisons:
         return
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 6))
 
-    color = '#38aff9'
-    x = np.arange(len(improvements))
-    scales, imps = zip(*improvements)
-    bars = ax.bar(x, imps, 0.5, label=label, color=color)
+    x = np.arange(len(sorted(oop_avg.index)))
+    width = 0.8 / (len(comparisons) + 1)
+    scales = sorted(oop_avg.index)
 
-    for bar, imp in zip(bars, imps):
-        height = bar.get_height()
-        va = 'bottom' if height >= 0 else 'top'
-        offset = 3 if height >= 0 else -3
-        ax.annotate(f'{imp:.1f}%',
-                   xy=(bar.get_x() + bar.get_width() / 2, height),
-                   xytext=(0, offset),
-                   textcoords="offset points",
-                   ha='center', va=va, fontsize=9, fontweight='bold')
+    for i, (label, prefix, color) in enumerate(comparisons):
+        improvements = []
+        data = results[f'{prefix}_frame']
+        avg_data = data.groupby('scale')['frame_time_ms'].mean()
+        for s in scales:
+            if s in avg_data:
+                oop_time = oop_avg[s]
+                other_time = avg_data[s]
+                imp = ((oop_time - other_time) / oop_time) * 100
+                improvements.append(imp)
+            else:
+                improvements.append(0)
+
+        bars = ax.bar(x + i * width - (len(comparisons) - 1) * width / 2, improvements, width, label=label, color=color)
+
+        for bar, imp in zip(bars, improvements):
+            height = bar.get_height()
+            va = 'bottom' if height >= 0 else 'top'
+            offset = 3 if height >= 0 else -3
+            ax.annotate(f'{imp:.1f}%',
+                       xy=(bar.get_x() + bar.get_width() / 2, height),
+                       xytext=(0, offset),
+                       textcoords="offset points",
+                       ha='center', va=va, fontsize=8, fontweight='bold')
 
     ax.set_xlabel('Entity Count')
     ax.set_ylabel('Performance Improvement (%)')
-    ax.set_title('EnTT ECS Performance vs OOP\n(Positive = ECS Faster)')
+    ax.set_title('Performance vs OOP Baseline\n(Positive = Faster than OOP)')
     ax.set_xticks(x)
     ax.set_xticklabels([f'{int(s):,}' for s in scales])
     ax.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
@@ -183,6 +197,8 @@ def plot_memory_comparison(results, output_dir):
     prefixes = []
     if 'oop_memory' in results:
         prefixes.append(('OOP', 'oop', '#e74c3c'))
+    if 'hybrid_memory' in results:
+        prefixes.append(('Hybrid', 'hybrid', '#2ecc71'))
     if 'ecs_entt_memory' in results:
         prefixes.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
@@ -234,6 +250,8 @@ def plot_creation_time(results, output_dir):
     prefixes = []
     if 'oop_creation' in results:
         prefixes.append(('OOP', 'oop', '#e74c3c'))
+    if 'hybrid_creation' in results:
+        prefixes.append(('Hybrid', 'hybrid', '#2ecc71'))
     if 'ecs_entt_creation' in results:
         prefixes.append(('ECS (EnTT)', 'ecs_entt', '#38aff9'))
 
@@ -283,27 +301,30 @@ def plot_creation_time(results, output_dir):
 def generate_summary_table(results, output_dir):
     """Generate summary table as text file."""
     lines = []
-    lines.append("=" * 80)
-    lines.append("OOP vs EnTT ECS Performance Benchmark Summary")
-    lines.append("=" * 80)
+    lines.append("=" * 100)
+    lines.append("OOP vs Hybrid vs EnTT ECS Performance Benchmark Summary")
+    lines.append("=" * 100)
     lines.append("")
 
     # Frame Time Results
-    if 'oop_frame' in results and 'ecs_entt_frame' in results:
-        prefixes = [('OOP', 'oop'), ('ECS (EnTT)', 'ecs_entt')]
+    if 'oop_frame' in results:
+        prefixes = [('OOP', 'oop')]
+        if 'hybrid_frame' in results:
+            prefixes.append(('Hybrid', 'hybrid'))
+        if 'ecs_entt_frame' in results:
+            prefixes.append(('ECS (EnTT)', 'ecs_entt'))
 
         oop_data = results['oop_frame']
         oop_avg = oop_data.groupby('scale')['frame_time_ms'].mean() * 1000  # Convert to microseconds
         oop_std = oop_data.groupby('scale')['frame_time_ms'].std() * 1000
 
         lines.append("Frame Time Results (microseconds):")
-        lines.append("-" * 80)
+        lines.append("-" * 100)
         header = f"{'Scale':>10}"
         for label, _ in prefixes:
-            header += f" | {label + ' Avg (μs)':>15} | {label + ' Std':>10}"
-        header += f" | {'EnTT vs OOP':>15}"
+            header += f" | {label + ' Avg':>12} | {label + ' Std':>10}"
         lines.append(header)
-        lines.append("-" * 80)
+        lines.append("-" * 100)
 
         for scale in sorted(oop_avg.index):
             row = f"{int(scale):>10,}"
@@ -311,73 +332,86 @@ def generate_summary_table(results, output_dir):
                 data = results[f'{prefix}_frame']
                 avg = data[data['scale'] == scale]['frame_time_ms'].mean() * 1000
                 std = data[data['scale'] == scale]['frame_time_ms'].std() * 1000
-                row += f" | {avg:>15.2f} | {std:>10.2f}"
+                row += f" | {avg:>12.2f} | {std:>10.2f}"
 
-            # Improvement vs OOP
-            entt_avg = results['ecs_entt_frame'][results['ecs_entt_frame']['scale'] == scale]['frame_time_ms'].mean()
-            imp = ((oop_avg[scale] / 1000 - entt_avg) / (oop_avg[scale] / 1000)) * 100
-            row += f" | {imp:>+14.1f}%"
+            # Improvement vs OOP for each non-OOP implementation
+            oop_time = oop_avg[scale] / 1000
+            for label, prefix in prefixes[1:]:
+                if f'{prefix}_frame' in results:
+                    other_avg = results[f'{prefix}_frame'][results[f'{prefix}_frame']['scale'] == scale]['frame_time_ms'].mean()
+                    imp = ((oop_time - other_avg) / oop_time) * 100
+                    row += f" | {label}: {imp:>+6.1f}%"
             lines.append(row)
 
         lines.append("")
 
     # Memory Results
-    if 'oop_memory' in results and 'ecs_entt_memory' in results:
+    if 'oop_memory' in results:
+        prefixes = [('OOP', 'oop')]
+        if 'hybrid_memory' in results:
+            prefixes.append(('Hybrid', 'hybrid'))
+        if 'ecs_entt_memory' in results:
+            prefixes.append(('ECS (EnTT)', 'ecs_entt'))
+
         lines.append("Memory Results:")
-        lines.append("-" * 60)
+        lines.append("-" * 80)
         header = f"{'Scale':>10}"
-        for label, prefix in prefixes:
+        for label, _ in prefixes:
             header += f" | {label + ' Peak (MB)':>15}"
-        header += f" | {'EnTT/OOP Ratio':>15}"
+        header += f" | {'Memory Ratios':>25}"
         lines.append(header)
-        lines.append("-" * 60)
+        lines.append("-" * 80)
 
         oop_mem = results['oop_memory']
         for idx, scale in enumerate(oop_mem['scale']):
             row = f"{int(scale):>10,}"
             oop_peak = 0
+            peaks = []
             for label, prefix in prefixes:
                 mem = results[f'{prefix}_memory']
                 peak = mem.iloc[idx]['peak_usage'] / 1024 / 1024
                 row += f" | {peak:>15.2f}"
+                peaks.append(peak)
                 if prefix == 'oop':
                     oop_peak = peak
 
-            entt_mem = results['ecs_entt_memory']
-            entt_peak = entt_mem.iloc[idx]['peak_usage'] / 1024 / 1024
-            row += f" | {entt_peak/oop_peak:>14.2f}x"
+            # Add ratios
+            ratios = []
+            for i, (label, prefix) in enumerate(prefixes[1:], 1):
+                ratios.append(f"{label}: {peaks[i]/oop_peak:.2f}x")
+            row += f" | {' | '.join(ratios):>25}"
             lines.append(row)
 
         lines.append("")
 
     # Creation Time Results
-    if 'oop_creation' in results and 'ecs_entt_creation' in results:
+    if 'oop_creation' in results:
+        prefixes = [('OOP', 'oop')]
+        if 'hybrid_creation' in results:
+            prefixes.append(('Hybrid', 'hybrid'))
+        if 'ecs_entt_creation' in results:
+            prefixes.append(('ECS (EnTT)', 'ecs_entt'))
+
         lines.append("Creation Time Results:")
-        lines.append("-" * 70)
+        lines.append("-" * 90)
         header = f"{'Scale':>10}"
-        for label, prefix in prefixes:
+        for label, _ in prefixes:
             header += f" | {label + ' Total (ms)':>15}"
-        header += f" | {'Per-Entity (μs)':>25}"
         lines.append(header)
-        lines.append("-" * 70)
+        lines.append("-" * 90)
 
         oop_cre = results['oop_creation']
         for idx, scale in enumerate(oop_cre['scale']):
             row = f"{int(scale):>10,}"
-            per_entity = []
             for label, prefix in prefixes:
                 cre = results[f'{prefix}_creation']
                 total = cre.iloc[idx]['create_time_ms']
-                avg = cre.iloc[idx]['avg_create_time_ms'] * 1000
                 row += f" | {total:>15.2f}"
-                per_entity.append(f"{label}: {avg:.2f}μs")
-
-            row += f" | {' | '.join(per_entity):>25}"
             lines.append(row)
 
         lines.append("")
 
-    lines.append("=" * 80)
+    lines.append("=" * 100)
 
     output_path = os.path.join(output_dir, 'benchmark_summary.txt')
     with open(output_path, 'w', encoding='utf-8') as f:
