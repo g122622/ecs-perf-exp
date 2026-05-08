@@ -80,7 +80,7 @@ EndermanEntity::EndermanEntity(uint32_t id)
 
 bool EndermanEntity::updateSpecialBehavior(
     float& x, float& y, float& z,
-    float& dirX, float& dirZ,
+    [[maybe_unused]] float& dirX, float& dirZ,
     float dt,
     bool hasTarget,
     [[maybe_unused]] float targetDistanceSq,
@@ -89,8 +89,9 @@ bool EndermanEntity::updateSpecialBehavior(
     const auto& profile = shared::getBehaviorProfile(shared::EntityType::Enderman);
     const auto& context = shared::simulationContext();
 
+    // Decrement cooldown first (to match shared behavior)
     if (teleportCooldown_ > 0.0f) {
-        teleportCooldown_ -= dt;
+        teleportCooldown_ = (teleportCooldown_ - dt) > 0.0f ? (teleportCooldown_ - dt) : 0.0f;
     }
 
     if (teleportCooldown_ <= 0.0f && (context.isNight || (!hasTarget && behaviorState_.alertness > 0.35f))) {
@@ -125,17 +126,22 @@ bool BatEntity::updateSpecialBehavior(
     const auto& profile = shared::getBehaviorProfile(shared::EntityType::Bat);
     const auto& context = shared::simulationContext();
 
+    // Decrement cooldown first (to match shared behavior)
+    if (heightBlendTimer_ > 0.0f) {
+        heightBlendTimer_ = (heightBlendTimer_ - dt) > 0.0f ? (heightBlendTimer_ - dt) : 0.0f;
+    }
+
     if (heightBlendTimer_ <= 0.0f || context.isNight) {
         shared::setHeadingFromStableAngle(shared::EntityType::Bat, behaviorState_,
                                           context.elapsedTime + behaviorState_.roamTimer, dirX, dirZ);
         heightBlendTimer_ = 1.5f + profile.curiosity * 2.0f;
     }
-    heightBlendTimer_ -= dt;
 
     float targetHeight = config.flightHeight > 0.0f ? config.flightHeight : 6.0f;
     targetHeight += profile.verticalBias * 3.0f;
 
     float heightBlend = dt * 0.5f;
+    heightBlend = heightBlend < 1.0f ? heightBlend : 1.0f;  // Clamp to match shared behavior
     y += (targetHeight - y) * heightBlend;
 
     return false;
@@ -154,21 +160,25 @@ bool BeeEntity::updateSpecialBehavior(
     float targetDistanceSq,
     float targetRangeSq) {
 
+    // Decrement anger timer first (to match shared behavior)
+    if (angerTimer_ > 0.0f) {
+        angerTimer_ = (angerTimer_ - dt) > 0.0f ? (angerTimer_ - dt) : 0.0f;
+    }
+
     float attackRangeSq = targetRangeSq > 0.0f ? targetRangeSq * 0.75f : 4.0f;
 
+    // Use RuntimeFlag to match shared behavior
+    bool angry = hasRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Angry);
     if (hasTarget && targetDistanceSq <= attackRangeSq) {
-        angry_ = true;
+        angry = true;
         angerTimer_ = 0.75f;
     }
 
-    if (angry_) {
-        angerTimer_ -= dt;
-        if (angerTimer_ <= 0.0f) {
-            angry_ = false;
-        }
+    if (angry && angerTimer_ <= 0.0f) {
+        angry = false;
     }
 
-    shared::setRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Angry, angry_);
+    shared::setRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Angry, angry);
     return false;
 }
 
@@ -188,17 +198,22 @@ bool FishEntity::updateSpecialBehavior(
     const auto& profile = shared::getBehaviorProfile(shared::EntityType::Fish);
     const auto& context = shared::simulationContext();
 
+    // Decrement cooldown first (to match shared behavior)
+    if (directionTimer_ > 0.0f) {
+        directionTimer_ = (directionTimer_ - dt) > 0.0f ? (directionTimer_ - dt) : 0.0f;
+    }
+
     if (directionTimer_ <= 0.0f) {
         shared::setHeadingFromStableAngle(shared::EntityType::Fish, behaviorState_,
                                           context.elapsedTime + behaviorState_.homeX * 0.1f, dirX, dirZ);
         directionTimer_ = 0.8f + profile.curiosity * 0.8f;
     }
-    directionTimer_ -= dt;
 
     float waterBias = profile.waterBias > 0.0f ? profile.waterBias : 1.0f;
     float targetDepth = shared::WorldConstants::WATER_LEVEL - (2.0f + waterBias * 6.0f);
 
     float depthBlend = dt * 0.35f;
+    depthBlend = depthBlend < 1.0f ? depthBlend : 1.0f;  // Clamp to match shared behavior
     y += (targetDepth - y) * depthBlend;
 
     return false;
@@ -223,34 +238,37 @@ bool DolphinEntity::updateSpecialBehavior(
     float waterBias = profile.waterBias > 0.0f ? profile.waterBias : 1.0f;
     float targetDepth = shared::WorldConstants::WATER_LEVEL - (1.0f + waterBias * 3.0f);
     float depthBlend = dt * 0.35f;
+    depthBlend = depthBlend < 1.0f ? depthBlend : 1.0f;  // Clamp to match shared behavior
     y += (targetDepth - y) * depthBlend;
 
-    // Jump behavior
+    // Decrement cooldown first (to match shared behavior)
     if (jumpCooldown_ > 0.0f) {
-        jumpCooldown_ -= dt;
+        jumpCooldown_ = (jumpCooldown_ - dt) > 0.0f ? (jumpCooldown_ - dt) : 0.0f;
     }
 
-    if (!jumping_ && jumpCooldown_ <= 0.0f && y < shared::WorldConstants::WATER_LEVEL + 0.5f) {
+    // Jump behavior - use RuntimeFlag to match shared behavior
+    bool jumping = hasRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Jumping);
+    if (!jumping && jumpCooldown_ <= 0.0f && y < shared::WorldConstants::WATER_LEVEL + 0.5f) {
         float noise = shared::stableAngle(shared::EntityType::Dolphin, behaviorState_,
                                           shared::simulationContext().elapsedTime);
         if (std::fmod(noise, 1.0f) > 0.75f) {
-            jumping_ = true;
+            jumping = true;
             jumpTimer_ = 0.0f;
             jumpCooldown_ = 3.0f + profile.curiosity * 2.0f;
         }
     }
 
-    if (jumping_) {
+    if (jumping) {
         jumpTimer_ += dt;
         y += 0.8f * dt * (1.0f + profile.verticalBias * 0.5f);
 
         if (jumpTimer_ >= 1.2f || y >= shared::WorldConstants::WATER_LEVEL + 2.0f) {
-            jumping_ = false;
+            jumping = false;
             jumpTimer_ = 0.0f;
         }
     }
 
-    shared::setRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Jumping, jumping_);
+    shared::setRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Jumping, jumping);
     return false;
 }
 
@@ -270,27 +288,30 @@ bool PhantomEntity::updateSpecialBehavior(
     const auto& profile = shared::getBehaviorProfile(shared::EntityType::Phantom);
     const auto& context = shared::simulationContext();
 
+    // Decrement cooldown first (to match shared behavior)
     if (diveCooldown_ > 0.0f) {
-        diveCooldown_ -= dt;
+        diveCooldown_ = (diveCooldown_ - dt) > 0.0f ? (diveCooldown_ - dt) : 0.0f;
     }
 
-    if (!diving_ && context.isNight && diveCooldown_ <= 0.0f) {
-        diving_ = true;
+    // Use RuntimeFlag to match shared behavior
+    bool diving = hasRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Diving);
+    if (!diving && context.isNight && diveCooldown_ <= 0.0f) {
+        diving = true;
         diveTimer_ = 0.0f;
         diveCooldown_ = 4.0f + profile.curiosity;
     }
 
-    if (diving_) {
+    if (diving) {
         diveTimer_ += dt;
         y -= 1.2f * dt;
 
         if (diveTimer_ >= 1.0f || y <= 1.5f) {
-            diving_ = false;
+            diving = false;
             diveTimer_ = 0.0f;
         }
     }
 
-    shared::setRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Diving, diving_);
+    shared::setRuntimeFlag(behaviorState_.flags, shared::RuntimeFlag::Diving, diving);
     return false;
 }
 
@@ -312,6 +333,7 @@ bool SquidEntity::updateSpecialBehavior(
     float waterBias = profile.waterBias > 0.0f ? profile.waterBias : 1.0f;
     float targetDepth = shared::WorldConstants::WATER_LEVEL - (2.0f + waterBias * 4.0f);
     float depthBlend = dt * 0.30f;
+    depthBlend = depthBlend < 1.0f ? depthBlend : 1.0f;  // Clamp to match shared behavior
 
     y += (targetDepth - y) * depthBlend;
 
@@ -336,6 +358,7 @@ bool TurtleEntity::updateSpecialBehavior(
     float waterBias = profile.waterBias > 0.0f ? profile.waterBias : 1.0f;
     float targetDepth = shared::WorldConstants::WATER_LEVEL - (1.0f + waterBias * 2.0f);
     float depthBlend = dt * 0.25f;
+    depthBlend = depthBlend < 1.0f ? depthBlend : 1.0f;  // Clamp to match shared behavior
 
     y += (targetDepth - y) * depthBlend;
 

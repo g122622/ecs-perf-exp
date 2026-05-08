@@ -146,7 +146,6 @@ public:
     bool hasSpecialBehavior() const override { return true; }
 
 private:
-    bool angry_ = false;
     float angerTimer_ = 0.0f;
 };
 
@@ -183,7 +182,6 @@ public:
     bool hasSpecialBehavior() const override { return true; }
 
 private:
-    bool jumping_ = false;
     float jumpTimer_ = 0.0f;
     float jumpCooldown_ = 0.0f;
 };
@@ -203,7 +201,6 @@ public:
     bool hasSpecialBehavior() const override { return true; }
 
 private:
-    bool diving_ = false;
     float diveTimer_ = 0.0f;
     float diveCooldown_ = 0.0f;
 };
