@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
-# ECS vs OOP vs EnTT ECS Performance Benchmark - Build and Run Script
+# ECS vs OOP vs Hybrid Performance Benchmark - Build and Run Script
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "================================================================================" -ForegroundColor Cyan
-Write-Host "  ECS vs OOP vs EnTT ECS Performance Benchmark - Build and Run Script" -ForegroundColor Cyan
+Write-Host "  ECS vs OOP vs Hybrid Performance Benchmark - Build and Run Script" -ForegroundColor Cyan
 Write-Host "================================================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -49,6 +49,14 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
+Write-Host "  --- Running Hybrid Benchmark ---" -ForegroundColor White
+& "$BuildDir\bin\Release\hybrid_benchmark.exe" "$ResultsDir"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Hybrid benchmark failed!" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
 Write-Host "  --- Running EnTT ECS Benchmark ---" -ForegroundColor White
 & "$BuildDir\bin\Release\ecs_entt_benchmark.exe" "$ResultsDir"
 if ($LASTEXITCODE -ne 0) {
@@ -78,7 +86,6 @@ Write-Host "  - avg_frame_time.png"
 Write-Host "  - performance_improvement.png"
 Write-Host "  - memory_comparison.png"
 Write-Host "  - creation_time.png"
-Write-Host "  - frame_time_distribution.png"
 Write-Host "  - benchmark_summary.txt"
 Write-Host ""
 
